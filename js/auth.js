@@ -33,7 +33,7 @@ const Auth = {
         const db = getSupabase();
         await db.auth.signOut();
         localStorage.removeItem('session');
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
     },
 
     async getUser() {
