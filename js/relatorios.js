@@ -1,140 +1,198 @@
 const Relatorios = {
-    init() {
-        document.getElementById('btn-rel-faturamento').addEventListener('click', () => this.faturamento());
-        document.getElementById('btn-rel-inadimplencia').addEventListener('click', () => this.inadimplencia());
-        document.getElementById('btn-rel-consumo').addEventListener('click', () => this.consumo());
-
-        this.populateClientes();
-    },
-
-    populateClientes() {
-        const clientes = Clientes.getAll();
-        const select = document.getElementById('rel-cliente');
-        select.innerHTML = '<option value="">Todos os clientes</option>' +
-            clientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
-    },
-
-    faturamento() {
+    async gerarFaturamento() {
         const mesInicio = document.getElementById('rel-mes-inicio').value;
         const mesFim = document.getElementById('rel-mes-fim').value;
+        const resultado = document.getElementById('resultado-faturamento');
 
         if (!mesInicio || !mesFim) {
             showToast('Selecione o período!', 'error');
             return;
         }
 
-        const pagamentos = Pagamentos.getAll().filter(p => p.mes >= mesInicio && p.mes <= mesFim);
-        const totalRecebido = pagamentos.reduce((sum, p) => sum + p.valorPago, 0);
+        const db = getSupabase();
+        const { data } = await db
+            .from('cobrancas')
+            .select('*, clientes(nome)')
+            .gte('mes', mesInicio)
+            .lte('mes', mesFim)
+            .order('mes');
 
-        const cobrancas = Cobranca.getAll().filter(c => c.mes >= mesInicio && c.mes <= mesFim);
-        const totalCobrado = cobrancas.reduce((sum, c) => sum + c.valorTotal, 0);
-        const totalPendente = cobrancas.filter(c => c.status === 'pendente').reduce((sum, c) => sum + c.valorTotal, 0);
-
-        const html = `
-            <div class="report-result">
-                <p><strong>Período:</strong> ${formatMonthYear(mesInicio)} a ${formatMonthYear(mesFim)}</p>
-                <p><strong>Total Cobrado:</strong> ${formatCurrency(totalCobrado)}</p>
-                <p><strong>Total Recebido:</strong> ${formatCurrency(totalRecebido)}</p>
-                <p><strong>Pendente:</strong> ${formatCurrency(totalPendente)}</p>
-                <p><strong>Taxa de Recebimento:</strong> ${totalCobrado > 0 ? ((totalRecebido / totalCobrado) * 100).toFixed(1) : 0}%</p>
-                <div class="total">Saldo: ${formatCurrency(totalRecebido)}</div>
-            </div>
-        `;
-        document.getElementById('resultado-faturamento').innerHTML = html;
-    },
-
-    inadimplencia() {
-        const pendentes = Cobranca.getPendentes();
-        const config = Config.get();
-        const hoje = new Date();
-
-        const atrasados = pendentes.map(c => {
-            const vencimento = new Date(c.vencimento);
-            const diasAtraso = Math.max(0, Math.floor((hoje - vencimento) / (1000 * 60 * 60 * 24)));
-            const multa = c.valorTotal * (config.multa / 100);
-            const juros = c.valorTotal * (config.juros / 100) * Math.floor(diasAtraso / 30);
-            const valorComMulta = c.valorTotal + multa + juros;
-
-            return { ...c, diasAtraso, multa, juros, valorComMulta };
-        }).sort((a, b) => b.diasAtraso - a.diasAtraso);
-
-        const totalDevedor = atrasados.reduce((sum, c) => sum + c.valorComMulta, 0);
-
-        const html = `
-            <div class="report-result">
-                <p><strong>Total de Inadimplentes:</strong> ${atrasados.length} cliente(s)</p>
-                <p><strong>Total Devedor (com multa):</strong> ${formatCurrency(totalDevedor)}</p>
-                <table style="width:100%; margin-top:15px;">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Mês</th>
-                            <th>Dias</th>
-                            <th>Valor</th>
-                            <th>Multa</th>
-                            <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${atrasados.length === 0
-                            ? '<tr><td colspan="6" style="text-align:center">Nenhum inadimplente</td></tr>'
-                            : atrasados.map(c => `
-                                <tr>
-                                    <td>${c.clienteNome}</td>
-                                    <td>${formatMonthYear(c.mes)}</td>
-                                    <td>${c.diasAtraso} dias</td>
-                                    <td>${formatCurrency(c.valorTotal)}</td>
-                                    <td>${formatCurrency(c.multa + c.juros)}</td>
-                                    <td><strong>${formatCurrency(c.valorComMulta)}</strong></td>
-                                </tr>
-                            `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-        document.getElementById('resultado-inadimplencia').innerHTML = html;
-    },
-
-    consumo() {
-        const clienteId = document.getElementById('rel-cliente').value;
-        let leituras = Leituras.getAll();
-
-        if (clienteId) {
-            leituras = leituras.filter(l => l.clienteId === clienteId);
+        if (!data || data.length === 0) {
+            resultado.innerHTML = '<p style="text-align:center; color: var(--text-muted);">Nenhum dado encontrado</p>';
+            return;
         }
 
-        leituras.sort((a, b) => a.mes.localeCompare(b.mes));
+        let total = 0;
+        let pagos = 0;
+        let pendentes = 0;
 
-        const totalConsumo = leituras.reduce((sum, l) => sum + l.consumo, 0);
-        const mediaConsumo = leituras.length > 0 ? totalConsumo / leituras.length : 0;
+        const rows = data.map(c => {
+            total += parseFloat(c.valor_total);
+            if (c.status === 'pago') pagos++;
+            else pendentes++;
 
-        const html = `
-            <div class="report-result">
-                <p><strong>Total de Leituras:</strong> ${leituras.length}</p>
-                <p><strong>Consumo Total:</strong> ${totalConsumo.toFixed(2)} m³</p>
-                <p><strong>Média de Consumo:</strong> ${mediaConsumo.toFixed(2)} m³/mês</p>
-                <table style="width:100%; margin-top:15px;">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Mês</th>
-                            <th>Consumo (m³)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${leituras.length === 0
-                            ? '<tr><td colspan="3" style="text-align:center">Nenhuma leitura encontrada</td></tr>'
-                            : leituras.map(l => `
-                                <tr>
-                                    <td>${l.clienteNome}</td>
-                                    <td>${formatMonthYear(l.mes)}</td>
-                                    <td>${l.consumo.toFixed(2)} m³</td>
-                                </tr>
-                            `).join('')}
-                    </tbody>
-                </table>
+            return `
+                <tr>
+                    <td>${c.clientes?.nome || 'N/A'}</td>
+                    <td>${formatMonthYear(c.mes)}</td>
+                    <td>${formatCurrency(c.valor_total)}</td>
+                    <td><span class="badge badge-${c.status === 'pago' ? 'success' : 'warning'}">${c.status}</span></td>
+                </tr>
+            `;
+        }).join('');
+
+        resultado.innerHTML = `
+            <div class="report-summary">
+                <div class="summary-item">
+                    <span class="label">Total Faturado:</span>
+                    <span class="value">${formatCurrency(total)}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Pagos:</span>
+                    <span class="value">${pagos}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Pendentes:</span>
+                    <span class="value">${pendentes}</span>
+                </div>
             </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Mês</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
         `;
-        document.getElementById('resultado-consumo').innerHTML = html;
+    },
+
+    async gerarInadimplencia() {
+        const resultado = document.getElementById('resultado-inadimplencia');
+        const db = getSupabase();
+
+        const { data } = await db
+            .from('cobrancas')
+            .select('*, clientes(nome, telefone, endereco)')
+            .in('status', ['pendente', 'atrasado'])
+            .order('vencimento');
+
+        if (!data || data.length === 0) {
+            resultado.innerHTML = '<p style="text-align:center; color: var(--text-muted);">Nenhuma inadimplência encontrada</p>';
+            return;
+        }
+
+        let total = 0;
+        const rows = data.map(c => {
+            total += parseFloat(c.valor_total);
+            const venc = new Date(c.vencimento);
+            const hoje = new Date();
+            const dias = Math.floor((hoje - venc) / (1000 * 60 * 60 * 24));
+
+            return `
+                <tr>
+                    <td>${c.clientes?.nome || 'N/A'}</td>
+                    <td>${c.clientes?.telefone || '-'}</td>
+                    <td>${formatMonthYear(c.mes)}</td>
+                    <td>${formatCurrency(c.valor_total)}</td>
+                    <td>${formatDate(c.vencimento)}</td>
+                    <td><span class="badge badge-danger">${dias > 0 ? dias + ' dias' : 'A vencer'}</span></td>
+                </tr>
+            `;
+        }).join('');
+
+        resultado.innerHTML = `
+            <div class="report-summary">
+                <div class="summary-item">
+                    <span class="label">Total Inadimplente:</span>
+                    <span class="value">${formatCurrency(total)}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Clientes:</span>
+                    <span class="value">${data.length}</span>
+                </div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Telefone</th>
+                        <th>Mês</th>
+                        <th>Valor</th>
+                        <th>Vencimento</th>
+                        <th>Situação</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+    },
+
+    async exportCSV(tipo) {
+        let data = [];
+        let filename = '';
+
+        const db = getSupabase();
+
+        switch (tipo) {
+            case 'clientes':
+                const { data: clientes } = await db.from('clientes').select('*').order('nome');
+                data = clientes || [];
+                filename = 'clientes.csv';
+                break;
+            case 'leituras':
+                const { data: leituras } = await db.from('leituras').select('*, clientes(nome)').order('mes', { ascending: false });
+                data = leituras || [];
+                filename = 'leituras.csv';
+                break;
+            case 'cobrancas':
+                const { data: cobrancas } = await db.from('cobrancas').select('*, clientes(nome)').order('criado_em', { ascending: false });
+                data = cobrancas || [];
+                filename = 'cobrancas.csv';
+                break;
+            case 'pagamentos':
+                const { data: pagamentos } = await db.from('pagamentos').select('*, cobrancas(clientes(nome), mes)').order('data_pagamento', { ascending: false });
+                data = pagamentos || [];
+                filename = 'pagamentos.csv';
+                break;
+        }
+
+        if (data.length === 0) {
+            showToast('Nenhum dado para exportar!', 'error');
+            return;
+        }
+
+        const csvContent = this.arrayToCSV(data);
+        this.downloadCSV(csvContent, filename);
+        showToast('Exportação concluída!');
+    },
+
+    arrayToCSV(data) {
+        if (!data.length) return '';
+        const headers = Object.keys(data[0]);
+        const rows = data.map(row =>
+            headers.map(h => {
+                let val = row[h];
+                if (typeof val === 'object' && val !== null) {
+                    val = JSON.stringify(val);
+                }
+                if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
+                    val = '"' + val.replace(/"/g, '""') + '"';
+                }
+                return val;
+            }).join(',')
+        );
+        return [headers.join(','), ...rows].join('\n');
+    },
+
+    downloadCSV(content, filename) {
+        const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
     }
 };

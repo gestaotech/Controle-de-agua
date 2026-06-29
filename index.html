@@ -3,537 +3,535 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de Água - Sistema de Cobrança</title>
+    <title>Controle de Água</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <h1>💧 Controle de Água</h1>
-            <p>Sistema de Cobrança de Tarifas</p>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span class="logo">💧</span>
+            <h1>Controle de Água</h1>
         </div>
-        <div class="header-user">
-            <span id="user-info"></span>
-            <button class="btn btn-secondary btn-sm" id="btn-logout">Sair</button>
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-page="dashboard">
+                <span class="icon">📊</span> Dashboard
+            </a>
+            <a href="#" class="nav-item" data-page="clientes">
+                <span class="icon">👤</span> Clientes
+            </a>
+            <a href="#" class="nav-item" data-page="leituras">
+                <span class="icon">📏</span> Leituras
+            </a>
+            <a href="#" class="nav-item" data-page="cobranca">
+                <span class="icon">💰</span> Cobrança
+            </a>
+            <a href="#" class="nav-item" data-page="pagamentos">
+                <span class="icon">✅</span> Pagamentos
+            </a>
+            <a href="#" class="nav-item" data-page="relatorios">
+                <span class="icon">📈</span> Relatórios
+            </a>
+            <a href="#" class="nav-item admin-only" data-page="usuarios">
+                <span class="icon">👥</span> Usuários
+            </a>
+            <a href="#" class="nav-item admin-only" data-page="config">
+                <span class="icon">⚙️</span> Configurações
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-details">
+                    <div class="avatar" id="user-avatar">U</div>
+                    <div>
+                        <div class="name" id="user-name">Usuário</div>
+                        <div class="role" id="user-role">Leitor</div>
+                    </div>
+                </div>
+                <button class="btn-icon" id="btn-logout" title="Sair">🚪</button>
+            </div>
         </div>
-    </header>
-
-    <nav class="sidebar">
-        <ul>
-            <li><a href="#" class="nav-link active" data-page="dashboard">📊 Dashboard</a></li>
-            <li data-requires="admin"><a href="#" class="nav-link" data-page="clientes">👤 Clientes</a></li>
-            <li><a href="#" class="nav-link" data-page="leituras">📏 Leituras</a></li>
-            <li data-requires="admin"><a href="#" class="nav-link" data-page="cobranca">💰 Cobrança</a></li>
-            <li data-requires="admin"><a href="#" class="nav-link" data-page="pagamentos">✅ Pagamentos</a></li>
-            <li data-requires="admin"><a href="#" class="nav-link" data-page="relatorios">📈 Relatórios</a></li>
-            <li data-requires="admin"><a href="#" class="nav-link" data-page="usuarios">👥 Usuários</a></li>
-            <li data-requires="admin"><a href="#" class="nav-link" data-page="config">⚙️ Configurações</a></li>
-        </ul>
-    </nav>
+    </aside>
 
     <main class="main-content">
-        <!-- Dashboard -->
-        <section id="page-dashboard" class="page active">
-            <h2>Dashboard</h2>
-            <div class="dashboard-cards">
+        <header class="header">
+            <button class="mobile-menu" id="mobile-menu">☰</button>
+            <h2 id="page-title">Dashboard</h2>
+        </header>
+
+        <div class="pages-container">
+            <section id="page-dashboard" class="page active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">👤</div>
+                        <div class="stat-content">
+                            <h3>Total Clientes</h3>
+                            <p class="stat-value" id="stat-total-clientes">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✅</div>
+                        <div class="stat-content">
+                            <h3>Clientes Ativos</h3>
+                            <p class="stat-value" id="stat-clientes-ativos">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">⏳</div>
+                        <div class="stat-content">
+                            <h3>Pendentes</h3>
+                            <p class="stat-value" id="stat-pendentes">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">💰</div>
+                        <div class="stat-content">
+                            <h3>Receita Mês</h3>
+                            <p class="stat-value" id="stat-receita">R$ 0,00</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Consumo Mensal (m³)</h3>
+                        <canvas id="chart-consumo"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Status dos Boletos</h3>
+                        <canvas id="chart-status"></canvas>
+                    </div>
+                </div>
                 <div class="card">
-                    <h3>Total de Clientes</h3>
-                    <p class="card-value" id="total-clientes">0</p>
+                    <div class="card-header">
+                        <h3>Últimas Cobranças</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Mês</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ultimas-cobrancas"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="page-clientes" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 id="cliente-form-title">Novo Cliente</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="form-cliente" class="form-grid">
+                            <input type="hidden" id="cliente-id">
+                            <div class="form-group">
+                                <label>Nome Completo *</label>
+                                <input type="text" id="cliente-nome" required>
+                            </div>
+                            <div class="form-group">
+                                <label>CPF/CNPJ</label>
+                                <input type="text" id="cliente-cpf">
+                            </div>
+                            <div class="form-group">
+                                <label>Endereço</label>
+                                <input type="text" id="cliente-endereco">
+                            </div>
+                            <div class="form-group">
+                                <label>Número Hidrômetro *</label>
+                                <input type="text" id="cliente-hidrometro" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Telefone</label>
+                                <input type="text" id="cliente-telefone">
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="cliente-status">
+                                    <option value="ativo">Ativo</option>
+                                    <option value="inativo">Inativo</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-cancelar-cliente">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 <div class="card">
-                    <h3>Clientes Ativos</h3>
-                    <p class="card-value" id="clientes-ativos">0</p>
+                    <div class="card-header">
+                        <h3>Lista de Clientes</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="filters-bar">
+                            <div class="filter-group">
+                                <label>Buscar</label>
+                                <input type="text" id="buscar-cliente" placeholder="Nome, CPF ou hidrômetro...">
+                            </div>
+                            <div class="filter-group">
+                                <label>Status</label>
+                                <select id="filtro-status-cliente">
+                                    <option value="">Todos</option>
+                                    <option value="ativo">Ativo</option>
+                                    <option value="inativo">Inativo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>CPF</th>
+                                    <th>Endereço</th>
+                                    <th>Hidrômetro</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-clientes"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="page-leituras" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Nova Leitura</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="form-leitura" class="form-grid">
+                            <div class="form-group">
+                                <label>Cliente *</label>
+                                <select id="leitura-cliente" required>
+                                    <option value="">Selecione um cliente</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Mês/Ano *</label>
+                                <input type="month" id="leitura-mes" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Leitura Anterior (m³)</label>
+                                <input type="number" id="leitura-anterior" readonly placeholder="Preenchido automaticamente">
+                            </div>
+                            <div class="form-group">
+                                <label>Leitura Atual (m³) *</label>
+                                <input type="number" id="leitura-atual" step="0.01" required placeholder="Digite a leitura atual">
+                            </div>
+                            <div class="form-group">
+                                <label>Consumo (m³)</label>
+                                <input type="text" id="leitura-consumo" readonly placeholder="Calculado automaticamente">
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-cancelar-leitura">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Registrar</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 <div class="card">
-                    <h3>Boletos Pendentes</h3>
-                    <p class="card-value" id="boletos-pendentes">0</p>
+                    <div class="card-header">
+                        <h3>Histórico de Leituras</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Mês</th>
+                                    <th>Anterior</th>
+                                    <th>Atual</th>
+                                    <th>Consumo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-leituras"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="page-cobranca" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Nova Cobrança</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="form-cobranca" class="form-grid">
+                            <div class="form-group">
+                                <label>Cliente *</label>
+                                <select id="cobranca-cliente" required>
+                                    <option value="">Selecione um cliente</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Mês/Ano *</label>
+                                <input type="month" id="cobranca-mes" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Consumo (m³)</label>
+                                <input type="text" id="cobranca-consumo" readonly placeholder="Leitura não encontrada">
+                            </div>
+                            <div class="form-group">
+                                <label>Valor por m³ (R$) *</label>
+                                <input type="number" id="cobranca-valor-m3" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Taxa Fixa (R$)</label>
+                                <input type="number" id="cobranca-taxa-fix" step="0.01" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Total (R$)</label>
+                                <input type="text" id="cobranca-total" readonly placeholder="Calculado automaticamente">
+                            </div>
+                            <div class="form-group">
+                                <label>Vencimento *</label>
+                                <input type="date" id="cobranca-vencimento" required>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-cancelar-cobranca">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Gerar Boleto</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 <div class="card">
-                    <h3>Receita do Mês</h3>
-                    <p class="card-value" id="receita-mes">R$ 0,00</p>
-                </div>
-            </div>
-            <div class="dashboard-charts">
-                <div class="chart-container">
-                    <h3>Consumo Mensal (m³)</h3>
-                    <canvas id="chart-consumo"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Faturamento Mensal (R$)</h3>
-                    <canvas id="chart-faturamento"></canvas>
-                </div>
-            </div>
-            <div class="dashboard-charts">
-                <div class="chart-container">
-                    <h3>Status dos Boletos</h3>
-                    <canvas id="chart-status"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Top 5 Clientes - Consumo</h3>
-                    <canvas id="chart-clientes"></canvas>
-                </div>
-            </div>
-            <div class="dashboard-section">
-                <h3>Últimas Cobranças</h3>
-                <table id="ultimas-cobrancas">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Mês/Ano</th>
-                            <th>Valor</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Clientes -->
-        <section id="page-clientes" class="page">
-            <h2>Cadastro de Clientes</h2>
-            <form id="form-cliente" class="form-grid">
-                <input type="hidden" id="cliente-id">
-                <div class="form-group">
-                    <label for="cliente-nome">Nome Completo</label>
-                    <input type="text" id="cliente-nome" required>
-                </div>
-                <div class="form-group">
-                    <label for="cliente-cpf">CPF/CNPJ</label>
-                    <input type="text" id="cliente-cpf" placeholder="000.000.000-00" required>
-                </div>
-                <div class="form-group">
-                    <label for="cliente-endereco">Endereço</label>
-                    <input type="text" id="cliente-endereco" required>
-                </div>
-                <div class="form-group">
-                    <label for="cliente-numero">Número Hidrômetro</label>
-                    <input type="text" id="cliente-numero" required>
-                </div>
-                <div class="form-group">
-                    <label for="cliente-telefone">Telefone</label>
-                    <input type="text" id="cliente-telefone">
-                </div>
-                <div class="form-group">
-                    <label for="cliente-status">Status</label>
-                    <select id="cliente-status">
-                        <option value="ativo">Ativo</option>
-                        <option value="inativo">Inativo</option>
-                    </select>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Salvar</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancelar-cliente">Cancelar</button>
-                </div>
-            </form>
-
-            <div class="table-container">
-                <h3>Lista de Clientes</h3>
-                <input type="text" id="buscar-cliente" class="search-input" placeholder="Buscar cliente...">
-                <table id="tabela-clientes">
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>CPF/CNPJ</th>
-                            <th>Endereço</th>
-                            <th>Hidrômetro</th>
-                            <th>Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Leituras -->
-        <section id="page-leituras" class="page">
-            <h2>Registro de Leituras</h2>
-            <form id="form-leitura" class="form-grid">
-                <div class="form-group">
-                    <label for="leitura-cliente">Cliente</label>
-                    <select id="leitura-cliente" required>
-                        <option value="">Selecione um cliente</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="leitura-mes">Mês/Ano</label>
-                    <input type="month" id="leitura-mes" required>
-                </div>
-                <div class="form-group">
-                    <label for="leitura-anterior">Leitura Anterior (m³)</label>
-                    <input type="number" id="leitura-anterior" step="0.01" readonly placeholder="Selecione o cliente">
-                </div>
-                <div class="form-group">
-                    <label for="leitura-atual">Leitura Atual (m³)</label>
-                    <input type="number" id="leitura-atual" step="0.01" required placeholder="Digite a leitura atual">
-                </div>
-                <div class="form-group">
-                    <label>Consumo (m³)</label>
-                    <input type="text" id="leitura-consumo" readonly>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Registrar</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancelar-leitura">Cancelar</button>
-                </div>
-            </form>
-
-            <div class="table-container">
-                <h3>Histórico de Leituras</h3>
-                <table id="tabela-leituras">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Mês/Ano</th>
-                            <th>Anterior</th>
-                            <th>Atual</th>
-                            <th>Consumo</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Cobrança -->
-        <section id="page-cobranca" class="page">
-            <h2>Cobrança e Boletos</h2>
-            <form id="form-cobranca" class="form-grid">
-                <div class="form-group">
-                    <label for="cobranca-cliente">Cliente</label>
-                    <select id="cobranca-cliente" required>
-                        <option value="">Selecione um cliente</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="cobranca-mes">Mês/Ano</label>
-                    <input type="month" id="cobranca-mes" required>
-                </div>
-                <div class="form-group">
-                    <label for="cobranca-consumo">Consumo (m³)</label>
-                    <input type="number" id="cobranca-consumo" step="0.01" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="cobranca-valor-m3">Valor por m³ (R$)</label>
-                    <input type="number" id="cobranca-valor-m3" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label for="cobranca-taxa-fix">Taxa Fixa (R$)</label>
-                    <input type="number" id="cobranca-taxa-fix" step="0.01" value="0">
-                </div>
-                <div class="form-group">
-                    <label for="cobranca-total">Total (R$)</label>
-                    <input type="text" id="cobranca-total" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="cobranca-vencimento">Data Vencimento</label>
-                    <input type="date" id="cobranca-vencimento" required>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Gerar Boleto</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancelar-cobranca">Cancelar</button>
-                </div>
-            </form>
-
-            <div class="table-container">
-                <h3>Boletos Gerados</h3>
-                <div class="filters-container">
-                    <div class="filter-group">
-                        <label>Buscar:</label>
-                        <input type="text" id="buscar-cobranca" class="search-input" placeholder="Nome do cliente...">
+                    <div class="card-header">
+                        <h3>Boletos Gerados</h3>
                     </div>
-                    <div class="filter-group">
-                        <label>Período:</label>
-                        <input type="month" id="filtro-cobranca-inicio">
-                        <span>até</span>
-                        <input type="month" id="filtro-cobranca-fim">
+                    <div class="card-body">
+                        <div class="filters-bar">
+                            <div class="filter-group">
+                                <label>Buscar</label>
+                                <input type="text" id="buscar-cobranca" placeholder="Nome do cliente...">
+                            </div>
+                            <div class="filter-group">
+                                <label>Status</label>
+                                <select id="filtro-status-cobranca">
+                                    <option value="">Todos</option>
+                                    <option value="pendente">Pendente</option>
+                                    <option value="pago">Pago</option>
+                                    <option value="atrasado">Atrasado</option>
+                                    <option value="cancelado">Cancelado</option>
+                                </select>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Mês</th>
+                                    <th>Consumo</th>
+                                    <th>Valor</th>
+                                    <th>Vencimento</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-cobrancas"></tbody>
+                        </table>
                     </div>
-                    <div class="filter-group">
-                        <label>Status:</label>
-                        <select id="filtro-cobranca-status">
-                            <option value="">Todos</option>
-                            <option value="pendente">Pendente</option>
-                            <option value="pago">Pago</option>
-                            <option value="cancelado">Cancelado</option>
-                        </select>
+                </div>
+            </section>
+
+            <section id="page-pagamentos" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Registrar Pagamento</h3>
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="Cobranca.render()">Filtrar</button>
-                </div>
-                <table id="tabela-cobrancas">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Mês/Ano</th>
-                            <th>Consumo</th>
-                            <th>Valor</th>
-                            <th>Vencimento</th>
-                            <th>Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Pagamentos -->
-        <section id="page-pagamentos" class="page">
-            <h2>Histórico de Pagamentos</h2>
-            <form id="form-pagamento" class="form-grid">
-                <div class="form-group">
-                    <label for="pagamento-cobranca">Boleto</label>
-                    <select id="pagamento-cobranca" required>
-                        <option value="">Selecione um boleto pendente</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="pagamento-data">Data Pagamento</label>
-                    <input type="date" id="pagamento-data" required>
-                </div>
-                <div class="form-group">
-                    <label for="pagamento-valor">Valor Pago (R$)</label>
-                    <input type="number" id="pagamento-valor" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label for="pagamento-metodo">Método</label>
-                    <select id="pagamento-metodo">
-                        <option value="dinheiro">Dinheiro</option>
-                        <option value="pix">PIX</option>
-                        <option value="transferencia">Transferência</option>
-                        <option value="cartao">Cartão</option>
-                    </select>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Registrar Pagamento</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancelar-pagamento">Cancelar</button>
-                </div>
-            </form>
-
-            <div class="table-container">
-                <h3>Pagamentos Realizados</h3>
-                <div class="filters-container">
-                    <div class="filter-group">
-                        <label>Período:</label>
-                        <input type="month" id="filtro-pagamento-inicio">
-                        <span>até</span>
-                        <input type="month" id="filtro-pagamento-fim">
+                    <div class="card-body">
+                        <form id="form-pagamento" class="form-grid">
+                            <div class="form-group">
+                                <label>Boleto *</label>
+                                <select id="pagamento-cobranca" required>
+                                    <option value="">Selecione um boleto pendente</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Data Pagamento *</label>
+                                <input type="date" id="pagamento-data" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Valor Pago (R$) *</label>
+                                <input type="number" id="pagamento-valor" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Método</label>
+                                <select id="pagamento-metodo">
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="transferencia">Transferência</option>
+                                    <option value="cartao">Cartão</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-cancelar-pagamento">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Registrar</button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="filter-group">
-                        <label>Método:</label>
-                        <select id="filtro-pagamento-metodo">
-                            <option value="">Todos</option>
-                            <option value="dinheiro">Dinheiro</option>
-                            <option value="pix">PIX</option>
-                            <option value="transferencia">Transferência</option>
-                            <option value="cartao">Cartão</option>
-                        </select>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Histórico de Pagamentos</h3>
                     </div>
-                    <button class="btn btn-secondary btn-sm" onclick="Pagamentos.render()">Filtrar</button>
-                </div>
-                <table id="tabela-pagamentos">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Mês Referência</th>
-                            <th>Valor Pago</th>
-                            <th>Data</th>
-                            <th>Método</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Relatórios -->
-        <section id="page-relatorios" class="page">
-            <h2>Relatórios</h2>
-            <div class="export-buttons">
-                <button class="btn btn-secondary" onclick="ExportUtils.exportClientes()">📋 Exportar Clientes (CSV)</button>
-                <button class="btn btn-secondary" onclick="ExportUtils.exportLeituras()">📋 Exportar Leituras (CSV)</button>
-                <button class="btn btn-secondary" onclick="ExportUtils.exportCobrancas()">📋 Exportar Cobranças (CSV)</button>
-                <button class="btn btn-secondary" onclick="ExportUtils.exportPagamentos()">📋 Exportar Pagamentos (CSV)</button>
-            </div>
-            <div class="reports-grid">
-                <div class="report-card">
-                    <h3>Relatório de Faturamento</h3>
-                    <div class="form-group">
-                        <label for="rel-mes-inicio">Mês Início</label>
-                        <input type="month" id="rel-mes-inicio">
+                    <div class="card-body">
+                        <div class="filters-bar">
+                            <div class="filter-group">
+                                <label>Período Início</label>
+                                <input type="month" id="filtro-pag-inicio">
+                            </div>
+                            <div class="filter-group">
+                                <label>Período Fim</label>
+                                <input type="month" id="filtro-pag-fim">
+                            </div>
+                            <div class="filter-group">
+                                <label>Método</label>
+                                <select id="filtro-pag-metodo">
+                                    <option value="">Todos</option>
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="transferencia">Transferência</option>
+                                    <option value="cartao">Cartão</option>
+                                </select>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th>Mês</th>
+                                    <th>Valor</th>
+                                    <th>Data</th>
+                                    <th>Método</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-pagamentos"></tbody>
+                        </table>
                     </div>
-                    <div class="form-group">
-                        <label for="rel-mes-fim">Mês Fim</label>
-                        <input type="month" id="rel-mes-fim">
+                </div>
+            </section>
+
+            <section id="page-relatorios" class="page">
+                <div class="export-buttons">
+                    <button class="btn btn-secondary" onclick="Relatorios.exportCSV('clientes')">📋 Exportar Clientes</button>
+                    <button class="btn btn-secondary" onclick="Relatorios.exportCSV('leituras')">📋 Exportar Leituras</button>
+                    <button class="btn btn-secondary" onclick="Relatorios.exportCSV('cobrancas')">📋 Exportar Cobranças</button>
+                    <button class="btn btn-secondary" onclick="Relatorios.exportCSV('pagamentos')">📋 Exportar Pagamentos</button>
+                </div>
+                <div class="charts-grid">
+                    <div class="report-card">
+                        <h3>Relatório de Faturamento</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Mês Início</label>
+                                <input type="month" id="rel-mes-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Mês Fim</label>
+                                <input type="month" id="rel-mes-fim">
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <button class="btn btn-primary" id="btn-rel-faturamento">Gerar Relatório</button>
+                        </div>
+                        <div id="resultado-faturamento"></div>
                     </div>
-                    <button class="btn btn-primary" id="btn-rel-faturamento">Gerar Relatório</button>
-                    <button class="btn btn-secondary" onclick="ExportUtils.exportRelatorioFaturamento(document.getElementById('rel-mes-inicio').value, document.getElementById('rel-mes-fim').value)">📄 Exportar PDF</button>
-                    <div id="resultado-faturamento"></div>
-                </div>
-
-                <div class="report-card">
-                    <h3>Inadimplência</h3>
-                    <button class="btn btn-primary" id="btn-rel-inadimplencia">Gerar Relatório</button>
-                    <button class="btn btn-secondary" onclick="ExportUtils.exportRelatorioInadimplencia()">📄 Exportar PDF</button>
-                    <div id="resultado-inadimplencia"></div>
-                </div>
-
-                <div class="report-card">
-                    <h3>Consumo por Cliente</h3>
-                    <div class="form-group">
-                        <label for="rel-cliente">Cliente</label>
-                        <select id="rel-cliente">
-                            <option value="">Todos os clientes</option>
-                        </select>
+                    <div class="report-card">
+                        <h3>Inadimplência</h3>
+                        <button class="btn btn-primary" id="btn-rel-inadimplencia">Gerar Relatório</button>
+                        <div id="resultado-inadimplencia"></div>
                     </div>
-                    <button class="btn btn-primary" id="btn-rel-consumo">Gerar Relatório</button>
-                    <div id="resultado-consumo"></div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Configurações -->
-        <section id="page-config" class="page">
-            <h2>Configurações</h2>
-            <form id="form-config" class="form-grid config-form">
-                <div class="form-group">
-                    <label for="config-valor-m3">Valor por m³ (R$)</label>
-                    <input type="number" id="config-valor-m3" step="0.01" required>
+            <section id="page-usuarios" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Gestão de Usuários</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Perfil</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-usuarios"></tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="config-taxa-fix">Taxa Fixa Mensal (R$)</label>
-                    <input type="number" id="config-taxa-fix" step="0.01" value="0">
-                </div>
-                <div class="form-group">
-                    <label for="config-multa">Multa Atraso (%)</label>
-                    <input type="number" id="config-multa" step="0.01" value="2">
-                </div>
-                <div class="form-group">
-                    <label for="config-juros">Juros ao Mês (%)</label>
-                    <input type="number" id="config-juros" step="0.01" value="1">
-                </div>
-                <div class="form-group full-width">
-                    <label for="config-empresa">Nome da Empresa</label>
-                    <input type="text" id="config-empresa" value="Saneamento Básico Ltda">
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Salvar Configurações</button>
-                </div>
-            </form>
+            </section>
 
-            <div class="danger-zone">
-                <h3>Zona de Perigo</h3>
-                <p>Atenção: Esta ação não pode ser desfeita.</p>
-                <button class="btn btn-danger" id="btn-limpar-dados">Limpar Todos os Dados</button>
-            </div>
-        </section>
+            <section id="page-config" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Configurações do Sistema</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="form-config" class="form-grid">
+                            <div class="form-group">
+                                <label>Nome da Empresa</label>
+                                <input type="text" id="config-empresa">
+                            </div>
+                            <div class="form-group">
+                                <label>Valor por m³ (R$)</label>
+                                <input type="number" id="config-valor-m3" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Taxa Fixa Mensal (R$)</label>
+                                <input type="number" id="config-taxa-fix" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Multa Atraso (%)</label>
+                                <input type="number" id="config-multa" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>Juros ao Mês (%)</label>
+                                <input type="number" id="config-juros" step="0.01">
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Salvar Configurações</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="danger-zone">
+                    <h3>Zona de Perigo</h3>
+                    <p>Atenção: Esta ação não pode ser desfeita.</p>
+                    <button class="btn btn-danger" id="btn-limpar-dados">Limpar Todos os Dados</button>
+                </div>
+            </section>
+        </div>
     </main>
 
-        <!-- Usuários -->
-        <section id="page-usuarios" class="page">
-            <h2>Gestão de Usuários</h2>
-            <form id="form-usuario" class="form-grid">
-                <input type="hidden" id="usuario-id">
-                <div class="form-group">
-                    <label for="usuario-nome">Nome Completo</label>
-                    <input type="text" id="usuario-nome" required>
-                </div>
-                <div class="form-group">
-                    <label for="usuario-login">Usuário</label>
-                    <input type="text" id="usuario-login" required>
-                </div>
-                <div class="form-group">
-                    <label for="usuario-senha">Senha</label>
-                    <input type="password" id="usuario-senha">
-                </div>
-                <div class="form-group">
-                    <label for="usuario-perfil">Perfil</label>
-                    <select id="usuario-perfil" required>
-                        <option value="leitor">Leitor (apenas leituras)</option>
-                        <option value="admin">Administrador (acesso total)</option>
-                    </select>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Salvar</button>
-                    <button type="button" class="btn btn-secondary" id="btn-cancelar-usuario">Cancelar</button>
-                </div>
-            </form>
+    <div id="modal-container"></div>
+    <div class="toast-container" id="toast-container"></div>
 
-            <div class="table-container">
-                <h3>Usuários Cadastrados</h3>
-                <table id="tabela-usuarios">
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Usuário</th>
-                            <th>Perfil</th>
-                            <th>Status</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-
-    <!-- Modal Boleto -->
-    <div id="modal-boleto" class="modal">
-        <div class="modal-content boleto">
-            <div class="boleto-header">
-                <h2 id="boleto-empresa">Saneamento Básico Ltda</h2>
-                <p>Recibo de Cobrança de Água</p>
-            </div>
-            <div class="boleto-body">
-                <div class="boleto-info">
-                    <div class="boleto-field">
-                        <label>Cliente:</label>
-                        <span id="boleto-cliente"></span>
-                    </div>
-                    <div class="boleto-field">
-                        <label>Endereço:</label>
-                        <span id="boleto-endereco"></span>
-                    </div>
-                    <div class="boleto-field">
-                        <label>Hidrômetro:</label>
-                        <span id="boleto-hidrometro"></span>
-                    </div>
-                </div>
-                <div class="boleto-info">
-                    <div class="boleto-field">
-                        <label>Referência:</label>
-                        <span id="boleto-referencia"></span>
-                    </div>
-                    <div class="boleto-field">
-                        <label>Consumo:</label>
-                        <span id="boleto-consumo"></span>
-                    </div>
-                    <div class="boleto-field">
-                        <label>Vencimento:</label>
-                        <span id="boleto-vencimento"></span>
-                    </div>
-                </div>
-                <div class="boleto-valor">
-                    <label>Valor Total:</label>
-                    <span id="boleto-valor"></span>
-                </div>
-            </div>
-            <div class="boleto-footer">
-                <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
-                <button class="btn btn-secondary" id="btn-fechar-boleto">Fechar</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="js/db.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
     <script src="js/clientes.js"></script>
     <script src="js/leituras.js"></script>
     <script src="js/cobranca.js"></script>
     <script src="js/pagamentos.js"></script>
     <script src="js/relatorios.js"></script>
-    <script src="js/usuarios.js"></script>
-    <script src="js/exports.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,80 +1,110 @@
 const Auth = {
-    getUsuario() {
-        const session = localStorage.getItem('session');
-        return session ? JSON.parse(session) : null;
+    async login(email, password) {
+        const db = getSupabase();
+        const { data, error } = await db.auth.signInWithPassword({
+            email,
+            password
+        });
+        if (error) throw error;
+        return data;
     },
 
-    isLoggedIn() {
-        return this.getUsuario() !== null;
+    async register(email, password, nome, perfil = 'leitor') {
+        const db = getSupabase();
+        const { data, error } = await db.auth.signUp({
+            email,
+            password,
+            options: { data: { nome, perfil } }
+        });
+        if (error) throw error;
+
+        if (data.user) {
+            await db.from('perfis').insert({
+                id: data.user.id,
+                nome,
+                perfil,
+                ativo: true
+            });
+        }
+        return data;
     },
 
-    isAdmin() {
-        const user = this.getUsuario();
-        return user && user.perfil === 'admin';
+    async logout() {
+        const db = getSupabase();
+        await db.auth.signOut();
+        localStorage.removeItem('session');
+        window.location.href = 'login.html';
     },
 
-    isLeitor() {
-        const user = this.getUsuario();
-        return user && user.perfil === 'leitor';
+    async getUser() {
+        const db = getSupabase();
+        const { data: { user } } = await db.auth.getUser();
+        return user;
     },
 
-    requireAuth() {
-        if (!this.isLoggedIn()) {
+    async getPerfil() {
+        const user = await this.getUser();
+        if (!user) return null;
+
+        const db = getSupabase();
+        const { data } = await db
+            .from('perfis')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+        return data;
+    },
+
+    async isLoggedIn() {
+        const user = await this.getUser();
+        return user !== null;
+    },
+
+    async isAdmin() {
+        const perfil = await this.getPerfil();
+        return perfil && perfil.perfil === 'admin';
+    },
+
+    async requireAuth() {
+        const loggedIn = await this.isLoggedIn();
+        if (!loggedIn) {
             window.location.href = 'login.html';
             return false;
         }
         return true;
     },
 
-    requireAdmin() {
-        if (!this.requireAuth()) return false;
-        if (!this.isAdmin()) {
-            alert('Acesso restrito ao administrador!');
+    async requireAdmin() {
+        const isAuth = await this.requireAuth();
+        if (!isAuth) return false;
+
+        const admin = await this.isAdmin();
+        if (!admin) {
+            showToast('Acesso restrito ao administrador!', 'error');
             return false;
         }
         return true;
     },
 
-    logout() {
-        localStorage.removeItem('session');
-        window.location.href = 'login.html';
+    async getUsuarios() {
+        const db = getSupabase();
+        const { data, error } = await db
+            .from('perfis')
+            .select('*')
+            .order('nome');
+        if (error) throw error;
+        return data;
     },
 
-    getUsuarios() {
-        return JSON.parse(localStorage.getItem('usuarios')) || [];
-    },
-
-    addUsuario(usuario) {
-        const usuarios = this.getUsuarios();
-        usuario.id = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-        usuario.ativo = true;
-        usuarios.push(usuario);
-        localStorage.setItem('usuarios', JSON.stringify(usuarios));
-        return usuario;
-    },
-
-    updateUsuario(id, updates) {
-        const usuarios = this.getUsuarios();
-        const index = usuarios.findIndex(u => u.id === id);
-        if (index !== -1) {
-            usuarios[index] = { ...usuarios[index], ...updates };
-            localStorage.setItem('usuarios', JSON.stringify(usuarios));
-            return usuarios[index];
-        }
-        return null;
-    },
-
-    deleteUsuario(id) {
-        const usuarios = this.getUsuarios().filter(u => u.id !== id);
-        localStorage.setItem('usuarios', JSON.stringify(usuarios));
-    },
-
-    toggleUsuario(id) {
-        const usuarios = this.getUsuarios();
-        const user = usuarios.find(u => u.id === id);
-        if (user) {
-            user.ativo = !user.ativo;
-            localStorage.setItem('usuarios', JSON.stringify(usuarios));
-        }
+    async updatePerfil(id, updates) {
+        const db = getSupabase();
+        const { data, error } = await db
+            .from('perfis')
+            .update(updates)
+            .eq('id', id)
+            .select();
+        if (error) throw error;
+        return data[0];
     }
 };

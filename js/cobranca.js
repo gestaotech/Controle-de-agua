@@ -1,53 +1,89 @@
 const Cobranca = {
-    init() {
-        this.form = document.getElementById('form-cobranca');
-        this.tableBody = document.querySelector('#tabela-cobrancas tbody');
-        this.searchInput = document.getElementById('buscar-cobranca');
-        this.selectCliente = document.getElementById('cobranca-cliente');
-        this.btnCancelar = document.getElementById('btn-cancelar-cobranca');
-
-        this.form.addEventListener('submit', (e) => this.save(e));
-        this.btnCancelar.addEventListener('click', () => this.cancel());
-        this.searchInput.addEventListener('input', () => this.render());
-
-        this.selectCliente.addEventListener('change', () => this.loadLeitura());
-        document.getElementById('cobranca-valor-m3').addEventListener('input', () => this.calcTotal());
-        document.getElementById('cobranca-taxa-fix').addEventListener('input', () => this.calcTotal());
-
-        this.populateClientes();
-        this.loadConfig();
-        this.render();
+    async getAll() {
+        const db = getSupabase();
+        const { data, error } = await db
+            .from('cobrancas')
+            .select('*, clientes(nome, numero_hidrometro)')
+            .order('criado_em', { ascending: false });
+        if (error) throw error;
+        return data || [];
     },
 
-    populateClientes() {
-        const clientes = Clientes.getAtivos();
-        this.selectCliente.innerHTML = '<option value="">Selecione um cliente</option>' +
-            clientes.map(c => `<option value="${c.id}">${c.nome} (${c.numero})</option>`).join('');
+    async search(query, status) {
+        const db = getSupabase();
+        let queryBuilder = db.from('cobrancas').select('*, clientes(nome, numero_hidrometro)');
+
+        if (query) {
+            queryBuilder = queryBuilder.ilike('clientes.nome', `%${query}%`);
+        }
+
+        if (status) {
+            queryBuilder = queryBuilder.eq('status', status);
+        }
+
+        const { data, error } = await queryBuilder.order('criado_em', { ascending: false });
+        if (error) throw error;
+        return data || [];
     },
 
-    loadConfig() {
-        const config = Config.get();
-        document.getElementById('cobranca-valor-m3').value = config.valorM3.toFixed(2);
-        document.getElementById('cobranca-taxa-fix').value = config.taxaFixa.toFixed(2);
+    async create(cobranca) {
+        const db = getSupabase();
+        const user = await Auth.getUser();
+
+        const { data, error } = await db.from('cobrancas').insert({
+            cliente_id: cobranca.cliente_id,
+            usuario_id: user.id,
+            mes: cobranca.mes,
+            consumo: cobranca.consumo,
+            valor_m3: cobranca.valor_m3,
+            taxa_fixa: cobranca.taxa_fixa,
+            valor_total: cobranca.valor_total,
+            vencimento: cobranca.vencimento,
+            status: 'pendente'
+        }).select();
+        if (error) throw error;
+        return data[0];
     },
 
-    loadLeitura() {
-        const clienteId = this.selectCliente.value;
+    async updateStatus(id, status) {
+        const db = getSupabase();
+        const { data, error } = await db.from('cobrancas').update({
+            status,
+            atualizado_em: new Date().toISOString()
+        }).eq('id', id).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    async delete(id) {
+        const db = getSupabase();
+        const { error } = await db.from('cobrancas').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    async loadLeitura() {
+        const clienteId = document.getElementById('cobranca-cliente').value;
         const mes = document.getElementById('cobranca-mes').value;
+        const inputConsumo = document.getElementById('cobranca-consumo');
 
         if (!clienteId || !mes) {
-            document.getElementById('cobranca-consumo').value = '';
-            document.getElementById('cobranca-total').value = '';
+            inputConsumo.value = '';
             return;
         }
 
-        const leitura = Leituras.getAll().find(l => l.clienteId === clienteId && l.mes === mes);
-        if (leitura) {
-            document.getElementById('cobranca-consumo').value = leitura.consumo.toFixed(2);
+        const db = getSupabase();
+        const { data } = await db
+            .from('leituras')
+            .select('consumo')
+            .eq('cliente_id', clienteId)
+            .eq('mes', mes)
+            .maybeSingle();
+
+        if (data) {
+            inputConsumo.value = data.consumo + ' m³';
             this.calcTotal();
         } else {
-            document.getElementById('cobranca-consumo').value = 'Leitura não encontrada';
-            document.getElementById('cobranca-total').value = '';
+            inputConsumo.value = 'Leitura não encontrada';
         }
     },
 
@@ -56,148 +92,257 @@ const Cobranca = {
         const valorM3 = parseFloat(document.getElementById('cobranca-valor-m3').value) || 0;
         const taxaFixa = parseFloat(document.getElementById('cobranca-taxa-fix').value) || 0;
 
-        if (consumo > 0 && valorM3 > 0) {
-            const total = (consumo * valorM3) + taxaFixa;
-            document.getElementById('cobranca-total').value = formatCurrency(total);
-        }
+        const total = (consumo * valorM3) + taxaFixa;
+        document.getElementById('cobranca-total').value = formatCurrency(total);
     },
 
-    save(e) {
+    async save(e) {
         e.preventDefault();
-        const clienteId = this.selectCliente.value;
+        const clienteId = document.getElementById('cobranca-cliente').value;
         const mes = document.getElementById('cobranca-mes').value;
-        const cliente = DB.find('clientes', clienteId);
-
-        const existente = this.getAll().find(c => c.clienteId === clienteId && c.mes === mes && c.status !== 'cancelado');
-        if (existente) {
-            showToast('Já existe boleto para este cliente/mês!', 'error');
-            return;
-        }
-
-        const consumo = parseFloat(document.getElementById('cobranca-consumo').value);
-        if (isNaN(consumo)) {
-            showToast('Leitura não encontrada para este mês!', 'error');
-            return;
-        }
-
         const valorM3 = parseFloat(document.getElementById('cobranca-valor-m3').value);
         const taxaFixa = parseFloat(document.getElementById('cobranca-taxa-fix').value) || 0;
         const vencimento = document.getElementById('cobranca-vencimento').value;
 
+        if (!clienteId || !mes || isNaN(valorM3) || !vencimento) {
+            showToast('Preencha todos os campos obrigatórios!', 'error');
+            return;
+        }
+
+        const db = getSupabase();
+        const { data: leitura } = await db
+            .from('leituras')
+            .select('consumo')
+            .eq('cliente_id', clienteId)
+            .eq('mes', mes)
+            .maybeSingle();
+
+        if (!leitura) {
+            showToast('Leitura não encontrada para este cliente/mês!', 'error');
+            return;
+        }
+
+        const consumo = parseFloat(leitura.consumo);
         const valorTotal = (consumo * valorM3) + taxaFixa;
 
-        const config = Config.get();
-        const boleto = {
-            clienteId,
-            clienteNome: cliente.nome,
-            clienteEndereco: cliente.endereco,
-            clienteNumero: cliente.numero,
-            mes,
-            consumo,
-            valorM3,
-            taxaFixa,
-            valorTotal,
-            vencimento,
-            empresa: config.empresa,
-            status: 'pendente',
-            codigo: this.generateCode()
-        };
+        const cobranca = { cliente_id: clienteId, mes, consumo, valor_m3: valorM3, taxa_fixa: taxaFixa, valor_total: valorTotal, vencimento };
 
-        DB.add('cobrancas', boleto);
-        showToast('Boleto gerado com sucesso!');
-        this.form.reset();
-        this.loadConfig();
-        document.getElementById('cobranca-consumo').value = '';
-        document.getElementById('cobranca-total').value = '';
-        this.render();
+        try {
+            const existente = await this.checkExistente(clienteId, mes);
+            if (existente) {
+                showToast('Já existe cobrança para este cliente/mês!', 'error');
+                return;
+            }
+
+            await this.create(cobranca);
+            showToast('Cobrança gerada com sucesso!');
+            this.cancel();
+            this.render();
+        } catch (error) {
+            showToast('Erro ao gerar cobrança: ' + error.message, 'error');
+        }
     },
 
-    generateCode() {
-        return 'AG' + Date.now().toString().slice(-8) + Math.random().toString(36).substr(2, 4).toUpperCase();
-    },
-
-    viewBoleto(id) {
-        const boleto = DB.find('cobrancas', id);
-        if (!boleto) return;
-
-        document.getElementById('boleto-empresa').textContent = boleto.empresa;
-        document.getElementById('boleto-cliente').textContent = boleto.clienteNome;
-        document.getElementById('boleto-endereco').textContent = boleto.clienteEndereco;
-        document.getElementById('boleto-hidrometro').textContent = boleto.clienteNumero;
-        document.getElementById('boleto-referencia').textContent = formatMonthYear(boleto.mes);
-        document.getElementById('boleto-consumo').textContent = boleto.consumo.toFixed(2) + ' m³';
-        document.getElementById('boleto-vencimento').textContent = formatDate(boleto.vencimento);
-        document.getElementById('boleto-valor').textContent = formatCurrency(boleto.valorTotal);
-
-        document.getElementById('modal-boleto').classList.add('active');
-    },
-
-    delete(id) {
-        if (!confirm('Cancelar este boleto?')) return;
-        DB.update('cobrancas', id, { status: 'cancelado' });
-        showToast('Boleto cancelado!');
-        this.render();
+    async checkExistente(clienteId, mes) {
+        const db = getSupabase();
+        const { data } = await db
+            .from('cobrancas')
+            .select('*')
+            .eq('cliente_id', clienteId)
+            .eq('mes', mes)
+            .maybeSingle();
+        return data;
     },
 
     cancel() {
-        this.form.reset();
-        this.loadConfig();
-        document.getElementById('cobranca-consumo').value = '';
-        document.getElementById('cobranca-total').value = '';
+        document.getElementById('form-cobranca').reset();
+        document.getElementById('cobranca-mes').value = getCurrentMonth();
+        document.getElementById('cobranca-valor-m3').value = '8.50';
+        document.getElementById('cobranca-taxa-fix').value = '15.00';
     },
 
-    getAll() {
-        return DB.get('cobrancas');
+    async render() {
+        const buscar = document.getElementById('buscar-cobranca')?.value || '';
+        const status = document.getElementById('filtro-status-cobranca')?.value || '';
+
+        const cobrancas = await this.search(buscar, status);
+        const tbody = document.getElementById('tabela-cobrancas');
+
+        if (!tbody) return;
+
+        if (cobrancas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">Nenhuma cobrança encontrada</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = cobrancas.map(c => `
+            <tr>
+                <td>${c.clientes?.nome || 'N/A'}</td>
+                <td>${formatMonthYear(c.mes)}</td>
+                <td>${c.consumo} m³</td>
+                <td>${formatCurrency(c.valor_total)}</td>
+                <td>${formatDate(c.vencimento)}</td>
+                <td><span class="badge badge-${c.status === 'pago' ? 'success' : c.status === 'pendente' ? 'warning' : 'danger'}">${c.status}</span></td>
+                <td class="actions-cell">
+                    <button class="btn-icon" onclick="Cobranca.imprimirBoleto('${c.id}')" title="Imprimir">🖨️</button>
+                    ${c.status === 'pendente' ? `<button class="btn-icon" onclick="Cobranca.marcarPago('${c.id}')" title="Marcar como Pago">✅</button>` : ''}
+                    <button class="btn-icon" onclick="Cobranca.remove('${c.id}')" title="Excluir">🗑️</button>
+                </td>
+            </tr>
+        `).join('');
     },
 
-    getPendentes() {
-        return this.getAll().filter(c => c.status === 'pendente');
+    async marcarPago(id) {
+        if (!confirm('Marcar como pago?')) return;
+        try {
+            await this.updateStatus(id, 'pago');
+            showToast('Cobrança marcada como paga!');
+            this.render();
+        } catch (error) {
+            showToast('Erro: ' + error.message, 'error');
+        }
     },
 
-    render() {
-        const search = document.getElementById('buscar-cobranca').value.toLowerCase();
-        const filtroInicio = document.getElementById('filtro-cobranca-inicio').value;
-        const filtroFim = document.getElementById('filtro-cobranca-fim').value;
-        const filtroStatus = document.getElementById('filtro-cobranca-status').value;
-
-        let cobrancas = this.getAll();
-
-        if (search) {
-            cobrancas = cobrancas.filter(c => 
-                c.clienteNome.toLowerCase().includes(search) || 
-                c.codigo.toLowerCase().includes(search)
-            );
+    async remove(id) {
+        if (!confirm('Excluir esta cobrança?')) return;
+        try {
+            await this.delete(id);
+            showToast('Cobrança excluída!');
+            this.render();
+        } catch (error) {
+            showToast('Erro ao excluir: ' + error.message, 'error');
         }
+    },
 
-        if (filtroInicio) {
-            cobrancas = cobrancas.filter(c => c.mes >= filtroInicio);
+    async imprimirBoleto(id) {
+        const db = getSupabase();
+        const { data: cobranca } = await db.from('cobrancas').select('*, clientes(*)').eq('id', id).single();
+        if (!cobranca) return;
+
+        const { data: configArr } = await db.from('config').select('*').limit(1);
+        const config = configArr && configArr[0] ? configArr[0] : { empresa: 'Saneamento Básico' };
+
+        const codigo = generateCode();
+        const barcodeNumber = generateBarcodeNumber(codigo);
+
+        const fatura = {
+            cliente: cobranca.clientes,
+            mes: cobranca.mes,
+            consumo: cobranca.consumo,
+            valorM3: cobranca.valor_m3,
+            taxaFixa: cobranca.taxa_fixa,
+            valorTotal: cobranca.valor_total,
+            vencimento: cobranca.vencimento,
+            empresa: config.empresa,
+            codigo,
+            barcodeNumber
+        };
+
+        this.showFaturaModal(fatura);
+    },
+
+    showFaturaModal(fatura) {
+        const modal = document.getElementById('modal-container');
+        modal.innerHTML = `
+            <div class="modal-overlay" onclick="if(event.target===this)Cobranca.fecharFatura()">
+                <div class="modal">
+                    <div class="boleto-preview">
+                        <div class="boleto-header-print">
+                            <h2>${fatura.empresa}</h2>
+                            <p>FATURA DE FORNECIMENTO DE ÁGUA</p>
+                        </div>
+                        <div class="boleto-body-print">
+                            <div class="boleto-info-grid">
+                                <div class="boleto-field">
+                                    <label>Cliente</label>
+                                    <span>${fatura.cliente.nome}</span>
+                                </div>
+                                <div class="boleto-field">
+                                    <label>Endereço</label>
+                                    <span>${fatura.cliente.endereco || '-'}</span>
+                                </div>
+                                <div class="boleto-field">
+                                    <label>Hidrômetro</label>
+                                    <span>${fatura.cliente.numero_hidrometro}</span>
+                                </div>
+                                <div class="boleto-field">
+                                    <label>Referência</label>
+                                    <span>${formatMonthYear(fatura.mes)}</span>
+                                </div>
+                                <div class="boleto-field">
+                                    <label>Consumo</label>
+                                    <span>${fatura.consumo} m³</span>
+                                </div>
+                                <div class="boleto-field">
+                                    <label>Vencimento</label>
+                                    <span>${formatDate(fatura.vencimento)}</span>
+                                </div>
+                            </div>
+                            <div class="boleto-valor-box">
+                                <div class="label">VALOR TOTAL</div>
+                                <div class="value">${formatCurrency(fatura.valorTotal)}</div>
+                            </div>
+                            <div class="boleto-codigos">
+                                <div class="boleto-qrcode">
+                                    <label>PIX QR Code</label>
+                                    <div id="qrcode-fatura"></div>
+                                </div>
+                                <div class="boleto-barcode">
+                                    <label>Código de Barras</label>
+                                    <svg id="barcode-fatura"></svg>
+                                    <span class="barcode-text">${fatura.barcodeNumber}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding: 1rem; text-align: center;">
+                        <button class="btn btn-primary" onclick="Cobranca.imprimir()">🖨️ Imprimir</button>
+                        <button class="btn btn-secondary" onclick="Cobranca.fecharFatura()">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setTimeout(() => {
+            const qrcodeEl = document.getElementById('qrcode-fatura');
+            if (qrcodeEl) {
+                new QRCode(qrcodeEl, {
+                    text: `00020126580014br.gov.bcb.pix0136${fatura.codigo}5204000053039865${fatura.valorTotal.toFixed(2)}5802BR5913${fatura.empresa}6009SAO PAULO62070503***6304`,
+                    width: 120,
+                    height: 120
+                });
+            }
+
+            const barcodeEl = document.getElementById('barcode-fatura');
+            if (barcodeEl) {
+                try {
+                    JsBarcode(barcodeEl, fatura.barcodeNumber, {
+                        format: 'CODE128',
+                        width: 1.5,
+                        height: 50,
+                        displayValue: false
+                    });
+                } catch (e) {
+                    console.error('Erro ao gerar código de barras:', e);
+                }
+            }
+        }, 100);
+    },
+
+    imprimir() {
+        window.print();
+    },
+
+    fecharFatura() {
+        document.getElementById('modal-container').innerHTML = '';
+    },
+
+    async loadConfig() {
+        const db = getSupabase();
+        const { data } = await db.from('config').select('*').limit(1);
+        if (data && data[0]) {
+            document.getElementById('cobranca-valor-m3').value = data[0].valor_m3 || 8.50;
+            document.getElementById('cobranca-taxa-fix').value = data[0].taxa_fixa || 15.00;
         }
-
-        if (filtroFim) {
-            cobrancas = cobrancas.filter(c => c.mes <= filtroFim);
-        }
-
-        if (filtroStatus) {
-            cobrancas = cobrancas.filter(c => c.status === filtroStatus);
-        }
-
-        cobrancas.sort((a, b) => b.mes.localeCompare(a.mes));
-
-        this.tableBody.innerHTML = cobrancas.length === 0
-            ? '<tr><td colspan="7" style="text-align:center">Nenhum boleto encontrado</td></tr>'
-            : cobrancas.map(c => `
-                <tr>
-                    <td>${c.clienteNome}</td>
-                    <td>${formatMonthYear(c.mes)}</td>
-                    <td>${c.consumo.toFixed(2)} m³</td>
-                    <td>${formatCurrency(c.valorTotal)}</td>
-                    <td>${formatDate(c.vencimento)}</td>
-                    <td><span class="status-badge status-${c.status}">${c.status === 'pendente' ? 'Pendente' : c.status === 'pago' ? 'Pago' : 'Cancelado'}</span></td>
-                    <td>
-                        <button class="btn-icon" onclick="Cobranca.viewBoleto('${c.id}')" title="Ver Boleto">📄</button>
-                        ${c.status === 'pendente' ? `<button class="btn-icon" onclick="Cobranca.delete('${c.id}')" title="Cancelar">❌</button>` : ''}
-                    </td>
-                </tr>
-            `).join('');
     }
 };

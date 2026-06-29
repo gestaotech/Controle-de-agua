@@ -1,299 +1,287 @@
-document.addEventListener('DOMContentLoaded', () => {
-    if (!Auth.requireAuth()) return;
+const App = {
+    currentPage: 'dashboard',
 
-    initUserInfo();
-    initMenuPermissions();
-    initNavigation();
-    initConfig();
-    initDashboard();
-    initModal();
-    initLogout();
-
-    Clientes.init();
-    Leituras.init();
-    Cobranca.init();
-    Pagamentos.init();
-    Relatorios.init();
-    Usuarios.init();
-
-    document.getElementById('leitura-mes').value = getCurrentMonth();
-    document.getElementById('cobranca-mes').value = getCurrentMonth();
-});
-
-function getCurrentMonth() {
-    const now = new Date();
-    return now.getFullYear() + '-' + (now.getMonth() + 1).toString().padStart(2, '0');
-}
-
-function initUserInfo() {
-    const user = Auth.getUsuario();
-    if (user) {
-        const perfil = user.perfil === 'admin' ? 'Administrador' : 'Leitor';
-        document.getElementById('user-info').textContent = `${user.nome} (${perfil})`;
-    }
-}
-
-function initMenuPermissions() {
-    const user = Auth.getUsuario();
-    const menuItems = document.querySelectorAll('[data-requires]');
-
-    menuItems.forEach(item => {
-        const required = item.dataset.requires;
-        if (required === 'admin' && user.perfil !== 'admin') {
-            item.style.display = 'none';
+    async init() {
+        const isLoggedIn = await Auth.isLoggedIn();
+        if (!isLoggedIn) {
+            window.location.href = 'login.html';
+            return;
         }
-    });
-}
 
-function initNavigation() {
-    const links = document.querySelectorAll('.nav-link');
-    const pages = document.querySelectorAll('.page');
+        await this.loadUserInfo();
+        this.setupNavigation();
+        this.setupMobileMenu();
+        this.setupForms();
+        this.setupFilters();
+        this.setupConfig();
+        await this.loadPage('dashboard');
+    },
 
-    links.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const page = link.dataset.page;
+    async loadUserInfo() {
+        const user = await Auth.getUser();
+        const perfil = await Auth.getPerfil();
 
-            if (link.parentElement.style.display === 'none') {
-                showToast('Acesso não autorizado!', 'error');
-                return;
+        if (user && perfil) {
+            document.getElementById('user-name').textContent = perfil.nome || user.email;
+            document.getElementById('user-role').textContent = perfil.perfil === 'admin' ? 'Administrador' : 'Leitor';
+            document.getElementById('user-avatar').textContent = (perfil.nome || user.email).charAt(0).toUpperCase();
+
+            if (perfil.perfil !== 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
             }
+        }
 
-            links.forEach(l => l.classList.remove('active'));
-            pages.forEach(p => p.classList.remove('active'));
+        document.getElementById('btn-logout').addEventListener('click', () => Auth.logout());
+    },
 
-            link.classList.add('active');
-            document.getElementById(`page-${page}`).classList.add('active');
-
-            if (page === 'dashboard') initDashboard();
-            if (page === 'leituras') Leituras.populateClientes();
-            if (page === 'cobranca') {
-                Cobranca.populateClientes();
-                Cobranca.loadConfig();
-            }
-            if (page === 'pagamentos') Pagamentos.populateCobrancas();
-            if (page === 'relatorios') Relatorios.populateClientes();
-            if (page === 'usuarios') Usuarios.render();
+    setupNavigation() {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = item.dataset.page;
+                this.loadPage(page);
+            });
         });
-    });
-}
+    },
 
-function initDashboard() {
-    const user = Auth.getUsuario();
-    const clientes = DB.get('clientes');
-    const cobrancas = DB.get('cobrancas');
-    const pagamentos = DB.get('pagamentos');
-    const leituras = DB.get('leituras');
+    setupMobileMenu() {
+        const menuBtn = document.getElementById('mobile-menu');
+        const sidebar = document.getElementById('sidebar');
 
-    const now = new Date();
-    const mesAtual = now.getFullYear() + '-' + (now.getMonth() + 1).toString().padStart(2, '0');
-
-    if (user.perfil === 'admin') {
-        document.getElementById('total-clientes').textContent = clientes.length;
-        document.getElementById('clientes-ativos').textContent = clientes.filter(c => c.status === 'ativo').length;
-        document.getElementById('boletos-pendentes').textContent = cobrancas.filter(c => c.status === 'pendente').length;
-
-        const receitaMes = pagamentos
-            .filter(p => p.mes.startsWith(mesAtual))
-            .reduce((sum, p) => sum + p.valorPago, 0);
-        document.getElementById('receita-mes').textContent = formatCurrency(receitaMes);
-
-        const recentes = cobrancas
-            .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
-            .slice(0, 5);
-
-        const tbody = document.querySelector('#ultimas-cobrancas tbody');
-        tbody.innerHTML = recentes.length === 0
-            ? '<tr><td colspan="4" style="text-align:center">Nenhuma cobrança ainda</td></tr>'
-            : recentes.map(c => `
-                <tr>
-                    <td>${c.clienteNome}</td>
-                    <td>${formatMonthYear(c.mes)}</td>
-                    <td>${formatCurrency(c.valorTotal)}</td>
-                    <td><span class="status-badge status-${c.status}">${c.status === 'pendente' ? 'Pendente' : c.status === 'pago' ? 'Pago' : 'Cancelado'}</span></td>
-                </tr>
-            `).join('');
-
-        initCharts(leituras, cobrancas, pagamentos);
-    } else {
-        document.getElementById('total-clientes').textContent = clientes.filter(c => c.status === 'ativo').length;
-        document.getElementById('clientes-ativos').textContent = '---';
-        document.getElementById('boletos-pendentes').textContent = '---';
-        document.getElementById('receita-mes').textContent = '---';
-
-        const tbody = document.querySelector('#ultimas-cobrancas tbody');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Acesso restrito ao administrador</td></tr>';
-    }
-}
-
-function initCharts(leituras, cobrancas, pagamentos) {
-    const meses = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        meses.push(d.getFullYear() + '-' + (d.getMonth() + 1).toString().padStart(2, '0'));
-    }
-
-    const labelsMeses = meses.map(m => formatMonthYear(m));
-
-    const consumoPorMes = meses.map(m => 
-        leituras.filter(l => l.mes === m).reduce((sum, l) => sum + l.consumo, 0)
-    );
-
-    const faturamentoPorMes = meses.map(m => 
-        cobrancas.filter(c => c.mes === m).reduce((sum, c) => sum + c.valorTotal, 0)
-    );
-
-    const statusCount = {
-        pendente: cobrancas.filter(c => c.status === 'pendente').length,
-        pago: cobrancas.filter(c => c.status === 'pago').length,
-        cancelado: cobrancas.filter(c => c.status === 'cancelado').length
-    };
-
-    const consumoPorCliente = {};
-    leituras.forEach(l => {
-        if (!consumoPorCliente[l.clienteNome]) {
-            consumoPorCliente[l.clienteNome] = 0;
+        if (menuBtn) {
+            menuBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
         }
-        consumoPorCliente[l.clienteNome] += l.consumo;
-    });
 
-    const topClientes = Object.entries(consumoPorCliente)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+        document.addEventListener('click', (e) => {
+            if (!sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
+                sidebar.classList.remove('open');
+            }
+        });
+    },
 
-    const chartColors = {
-        primary: 'rgba(33, 150, 243, 0.8)',
-        primaryBorder: 'rgba(33, 150, 243, 1)',
-        success: 'rgba(76, 175, 80, 0.8)',
-        warning: 'rgba(255, 152, 0, 0.8)',
-        danger: 'rgba(244, 67, 54, 0.8)',
-        secondary: 'rgba(96, 125, 139, 0.8)'
-    };
-
-    if (window.chartConsumo) window.chartConsumo.destroy();
-    if (window.chartFaturamento) window.chartFaturamento.destroy();
-    if (window.chartStatus) window.chartStatus.destroy();
-    if (window.chartClientes) window.chartClientes.destroy();
-
-    window.chartConsumo = new Chart(document.getElementById('chart-consumo'), {
-        type: 'line',
-        data: {
-            labels: labelsMeses,
-            datasets: [{
-                label: 'Consumo (m³)',
-                data: consumoPorMes,
-                borderColor: chartColors.primaryBorder,
-                backgroundColor: chartColors.primary,
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } }
+    setupForms() {
+        const formCliente = document.getElementById('form-cliente');
+        if (formCliente) {
+            formCliente.addEventListener('submit', (e) => Clientes.save(e));
+            document.getElementById('btn-cancelar-cliente')?.addEventListener('click', () => Clientes.cancel());
         }
-    });
 
-    window.chartFaturamento = new Chart(document.getElementById('chart-faturamento'), {
-        type: 'bar',
-        data: {
-            labels: labelsMeses,
-            datasets: [{
-                label: 'Faturamento (R$)',
-                data: faturamentoPorMes,
-                backgroundColor: chartColors.success
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } }
-        }
-    });
+        const formLeitura = document.getElementById('form-leitura');
+        if (formLeitura) {
+            formLeitura.addEventListener('submit', (e) => Leituras.save(e));
+            document.getElementById('btn-cancelar-leitura')?.addEventListener('click', () => Leituras.cancel());
 
-    window.chartStatus = new Chart(document.getElementById('chart-status'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Pendente', 'Pago', 'Cancelado'],
-            datasets: [{
-                data: [statusCount.pendente, statusCount.pago, statusCount.cancelado],
-                backgroundColor: [chartColors.warning, chartColors.success, chartColors.secondary]
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'bottom' }
+            const leituraCliente = document.getElementById('leitura-cliente');
+            if (leituraCliente) {
+                leituraCliente.addEventListener('change', () => Leituras.loadUltimaLeitura());
+            }
+
+            const leituraAtual = document.getElementById('leitura-atual');
+            if (leituraAtual) {
+                leituraAtual.addEventListener('input', () => Leituras.calcConsumo());
             }
         }
-    });
 
-    window.chartClientes = new Chart(document.getElementById('chart-clientes'), {
-        type: 'bar',
-        data: {
-            labels: topClientes.map(c => c[0]),
-            datasets: [{
-                label: 'Consumo Total (m³)',
-                data: topClientes.map(c => c[1]),
-                backgroundColor: chartColors.primary
-            }]
-        },
-        options: {
-            responsive: true,
-            indexAxis: 'y',
-            plugins: { legend: { display: false } },
-            scales: { x: { beginAtZero: true } }
+        const formCobranca = document.getElementById('form-cobranca');
+        if (formCobranca) {
+            formCobranca.addEventListener('submit', (e) => Cobranca.save(e));
+            document.getElementById('btn-cancelar-cobranca')?.addEventListener('click', () => Cobranca.cancel());
+
+            const cobrancaCliente = document.getElementById('cobranca-cliente');
+            const cobrancaMes = document.getElementById('cobranca-mes');
+
+            if (cobrancaCliente) cobrancaCliente.addEventListener('change', () => Cobranca.loadLeitura());
+            if (cobrancaMes) cobrancaMes.addEventListener('change', () => Cobranca.loadLeitura());
+
+            ['cobranca-valor-m3', 'cobranca-taxa-fix'].forEach(id => {
+                document.getElementById(id)?.addEventListener('input', () => Cobranca.calcTotal());
+            });
         }
-    });
-}
 
-function initConfig() {
-    const config = Config.get();
-    document.getElementById('config-valor-m3').value = config.valorM3;
-    document.getElementById('config-taxa-fix').value = config.taxaFixa;
-    document.getElementById('config-multa').value = config.multa;
-    document.getElementById('config-juros').value = config.juros;
-    document.getElementById('config-empresa').value = config.empresa;
-
-    document.getElementById('form-config').addEventListener('submit', (e) => {
-        e.preventDefault();
-        Config.save({
-            valorM3: parseFloat(document.getElementById('config-valor-m3').value),
-            taxaFixa: parseFloat(document.getElementById('config-taxa-fix').value),
-            multa: parseFloat(document.getElementById('config-multa').value),
-            juros: parseFloat(document.getElementById('config-juros').value),
-            empresa: document.getElementById('config-empresa').value.trim()
-        });
-        showToast('Configurações salvas!');
-    });
-
-    document.getElementById('btn-limpar-dados').addEventListener('click', () => {
-        if (!confirm('ATENÇÃO: Todos os dados serão apagados permanentemente!\n\nTem certeza?')) return;
-        if (!confirm('Última chance! Confirma a limpeza de todos os dados?')) return;
-        DB.clearAll();
-        showToast('Todos os dados foram apagados!', 'warning');
-        initDashboard();
-    });
-}
-
-function initModal() {
-    const modal = document.getElementById('modal-boleto');
-    document.getElementById('btn-fechar-boleto').addEventListener('click', () => {
-        modal.classList.remove('active');
-    });
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('active');
+        const formPagamento = document.getElementById('form-pagamento');
+        if (formPagamento) {
+            formPagamento.addEventListener('submit', (e) => Pagamentos.save(e));
+            document.getElementById('btn-cancelar-pagamento')?.addEventListener('click', () => Pagamentos.cancel());
         }
-    });
-}
 
-function initLogout() {
-    document.getElementById('btn-logout').addEventListener('click', () => {
-        if (confirm('Deseja sair do sistema?')) {
-            Auth.logout();
+        const formConfig = document.getElementById('form-config');
+        if (formConfig) {
+            formConfig.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.saveConfig();
+            });
         }
-    });
-}
+    },
+
+    setupFilters() {
+        document.getElementById('buscar-cliente')?.addEventListener('input', () => Clientes.render());
+        document.getElementById('filtro-status-cliente')?.addEventListener('change', () => Clientes.render());
+        document.getElementById('buscar-cobranca')?.addEventListener('input', () => Cobranca.render());
+        document.getElementById('filtro-status-cobranca')?.addEventListener('change', () => Cobranca.render());
+        document.getElementById('filtro-pag-inicio')?.addEventListener('change', () => Pagamentos.render());
+        document.getElementById('filtro-pag-fim')?.addEventListener('change', () => Pagamentos.render());
+        document.getElementById('filtro-pag-metodo')?.addEventListener('change', () => Pagamentos.render());
+
+        document.getElementById('btn-rel-faturamento')?.addEventListener('click', () => Relatorios.gerarFaturamento());
+        document.getElementById('btn-rel-inadimplencia')?.addEventListener('click', () => Relatorios.gerarInadimplencia());
+    },
+
+    async setupConfig() {
+        const perfil = await Auth.getPerfil();
+        if (perfil && perfil.perfil === 'admin') {
+            await this.loadConfig();
+        }
+    },
+
+    async loadPage(page) {
+        this.currentPage = page;
+
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+        const pageEl = document.getElementById('page-' + page);
+        if (pageEl) pageEl.classList.add('active');
+
+        const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
+        if (navEl) navEl.classList.add('active');
+
+        const titles = {
+            dashboard: 'Dashboard',
+            clientes: 'Gestão de Clientes',
+            leituras: 'Leituras de Hidrômetro',
+            cobranca: 'Cobranças',
+            pagamentos: 'Pagamentos',
+            relatorios: 'Relatórios',
+            usuarios: 'Gestão de Usuários',
+            config: 'Configurações'
+        };
+        document.getElementById('page-title').textContent = titles[page] || 'Dashboard';
+
+        document.getElementById('sidebar')?.classList.remove('open');
+
+        switch (page) {
+            case 'dashboard':
+                await Dashboard.load();
+                break;
+            case 'clientes':
+                await Clientes.render();
+                break;
+            case 'leituras':
+                await Clientes.populateSelect();
+                document.getElementById('leitura-mes').value = getCurrentMonth();
+                await Leituras.render();
+                break;
+            case 'cobranca':
+                await Clientes.populateSelect();
+                document.getElementById('cobranca-mes').value = getCurrentMonth();
+                await Cobranca.loadConfig();
+                await Cobranca.render();
+                break;
+            case 'pagamentos':
+                await Pagamentos.loadPendentes();
+                document.getElementById('pagamento-data').value = new Date().toISOString().split('T')[0];
+                await Pagamentos.render();
+                break;
+            case 'usuarios':
+                await this.renderUsuarios();
+                break;
+            case 'config':
+                await this.loadConfig();
+                break;
+        }
+    },
+
+    async renderUsuarios() {
+        const usuarios = await Auth.getUsuarios();
+        const tbody = document.getElementById('tabela-usuarios');
+
+        if (!tbody) return;
+
+        if (usuarios.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">Nenhum usuário encontrado</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = usuarios.map(u => `
+            <tr>
+                <td>${u.nome}</td>
+                <td>${u.email || '-'}</td>
+                <td><span class="badge badge-${u.perfil === 'admin' ? 'info' : 'secondary'}">${u.perfil === 'admin' ? 'Admin' : 'Leitor'}</span></td>
+                <td><span class="badge badge-${u.ativo ? 'success' : 'danger'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                <td class="actions-cell">
+                    <button class="btn-icon" onclick="App.toggleUsuario('${u.id}', ${!u.ativo})" title="${u.ativo ? 'Desativar' : 'Ativar'}">
+                        ${u.ativo ? '⏸️' : '▶️'}
+                    </button>
+                    <button class="btn-icon" onclick="App.promoverUsuario('${u.id}', '${u.perfil}')" title="Alterar Perfil">
+                        👤
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    async toggleUsuario(id, ativo) {
+        try {
+            await Auth.updatePerfil(id, { ativo });
+            showToast('Usuário atualizado!');
+            this.renderUsuarios();
+        } catch (error) {
+            showToast('Erro: ' + error.message, 'error');
+        }
+    },
+
+    async promoverUsuario(id, perfilAtual) {
+        const novoPerfil = perfilAtual === 'admin' ? 'leitor' : 'admin';
+        if (!confirm(`Alterar perfil para ${novoPerfil}?`)) return;
+
+        try {
+            await Auth.updatePerfil(id, { perfil: novoPerfil });
+            showToast('Perfil atualizado!');
+            this.renderUsuarios();
+        } catch (error) {
+            showToast('Erro: ' + error.message, 'error');
+        }
+    },
+
+    async loadConfig() {
+        const db = getSupabase();
+        const { data } = await db.from('config').select('*').limit(1);
+
+        if (data && data[0]) {
+            document.getElementById('config-empresa').value = data[0].empresa || '';
+            document.getElementById('config-valor-m3').value = data[0].valor_m3 || 8.50;
+            document.getElementById('config-taxa-fix').value = data[0].taxa_fixa || 15.00;
+            document.getElementById('config-multa').value = data[0].multa || 2.00;
+            document.getElementById('config-juros').value = data[0].juros || 1.00;
+        }
+    },
+
+    async saveConfig() {
+        const config = {
+            empresa: document.getElementById('config-empresa').value.trim(),
+            valor_m3: parseFloat(document.getElementById('config-valor-m3').value) || 8.50,
+            taxa_fixa: parseFloat(document.getElementById('config-taxa-fix').value) || 15.00,
+            multa: parseFloat(document.getElementById('config-multa').value) || 2.00,
+            juros: parseFloat(document.getElementById('config-juros').value) || 1.00
+        };
+
+        try {
+            const db = getSupabase();
+            const { data } = await db.from('config').select('id').limit(1);
+
+            if (data && data.length > 0) {
+                await db.from('config').update(config).eq('id', data[0].id);
+            } else {
+                await db.from('config').insert(config);
+            }
+
+            showToast('Configurações salvas!');
+        } catch (error) {
+            showToast('Erro ao salvar: ' + error.message, 'error');
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
