@@ -1,0 +1,169 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.boleto {
+  padding: 2rem;
+}
+
+.header {
+  text-align: center;
+  border-bottom: 2px solid var(--text-primary);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.header h2 {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.header p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.field span {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.valorBox {
+  background: var(--bg-primary);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.valorBox .label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.valorBox .value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.codigos {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.qrcode,
+.barcode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qrcode label,
+.barcode label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.barcodeText {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  word-break: break-all;
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.print,
+.close {
+  padding: 0.625rem 1.5rem;
+  border-radius: var(--radius);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.print {
+  background: var(--primary);
+  border: none;
+  color: white;
+}
+
+.print:hover {
+  background: var(--primary-dark);
+}
+
+.close {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.close:hover {
+  background: var(--border);
+}
+
+@media print {
+  .overlay {
+    position: static;
+    background: none;
+  }
+
+  .modal {
+    box-shadow: none;
+    max-height: none;
+  }
+
+  .footer {
+    display: none;
+  }
+}
