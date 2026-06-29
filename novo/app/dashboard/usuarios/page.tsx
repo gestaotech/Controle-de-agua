@@ -1,93 +1,38 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import styles from './page.module.css';
-
-interface Perfil {
-  id: string;
-  nome: string;
-  perfil: 'admin' | 'leitor';
-  ativo: boolean;
-}
+import { createClient } from '@/lib/supabase';
 
 export default function UsuariosPage() {
-  const [usuarios, setUsuarios] = useState<Perfil[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const supabase = createClient();
 
-  useEffect(() => {
-    loadUsuarios();
-  }, []);
-
-  const loadUsuarios = async () => {
-    const db = createClient();
-    const { data } = await db.from('perfis').select('*').order('nome');
+  const load = async () => {
+    const { data } = await supabase.from('perfis').select('*').order('nome');
     setUsuarios(data || []);
-    setLoading(false);
   };
 
-  const toggleUsuario = async (id: string, ativo: boolean) => {
-    const db = createClient();
-    await db.from('perfis').update({ ativo }).eq('id', id);
-    loadUsuarios();
-  };
-
-  const promoverUsuario = async (id: string, perfilAtual: string) => {
-    const novoPerfil = perfilAtual === 'admin' ? 'leitor' : 'admin';
-    if (!confirm(`Alterar perfil para ${novoPerfil}?`)) return;
-
-    const db = createClient();
-    await db.from('perfis').update({ perfil: novoPerfil }).eq('id', id);
-    loadUsuarios();
-  };
-
-  if (loading) return <p>Carregando...</p>;
+  useEffect(() => { load(); }, []);
 
   return (
-    <div className={styles.container}>
-      <div className={styles.card}>
-        <h3>Gestão de Usuários</h3>
-
-        {usuarios.length === 0 ? (
-          <p className={styles.empty}>Nenhum usuário encontrado</p>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Perfil</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map(usuario => (
-                <tr key={usuario.id}>
-                  <td>{usuario.nome}</td>
-                  <td>
-                    <span className={`badge badge-${usuario.perfil === 'admin' ? 'info' : 'secondary'}`}>
-                      {usuario.perfil === 'admin' ? 'Admin' : 'Leitor'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge badge-${usuario.ativo ? 'success' : 'danger'}`}>
-                      {usuario.ativo ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className={styles.actions}>
-                    <button onClick={() => toggleUsuario(usuario.id, !usuario.ativo)} title={usuario.ativo ? 'Desativar' : 'Ativar'}>
-                      {usuario.ativo ? '⏸️' : '▶️'}
-                    </button>
-                    <button onClick={() => promoverUsuario(usuario.id, usuario.perfil)} title="Alterar Perfil">
-                      👤
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+    <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+      <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Gestão de Usuários</h3>
+      <table>
+        <thead><tr><th>Nome</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>
+          {usuarios.map(u => (
+            <tr key={u.id}>
+              <td>{u.nome}</td>
+              <td><span className={`badge badge-${u.perfil === 'admin' ? 'info' : 'secondary'}`}>{u.perfil}</span></td>
+              <td><span className={`badge badge-${u.ativo ? 'success' : 'danger'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+              <td>
+                <button onClick={async () => { await supabase.from('perfis').update({ ativo: !u.ativo }).eq('id', u.id); load(); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>{u.ativo ? '⏸️' : '▶️'}</button>
+                <button onClick={async () => { if (confirm(`Alterar para ${u.perfil === 'admin' ? 'leitor' : 'admin'}?`)) { await supabase.from('perfis').update({ perfil: u.perfil === 'admin' ? 'leitor' : 'admin' }).eq('id', u.id); load(); } }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>👤</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

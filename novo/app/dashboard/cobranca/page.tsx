@@ -1,214 +1,120 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { formatMonthYear, formatCurrency, formatDate, generateCode, generateBarcodeNumber } from '@/lib/utils';
-import CobrancaForm from '@/components/features/cobranca/CobrancaForm';
-import CobrancaTable from '@/components/features/cobranca/CobrancaTable';
-import FaturaModal from '@/components/features/leituras/FaturaModal';
-import styles from './page.module.css';
+import { createClient } from '@/lib/supabase';
+import { useAuth } from '../layout';
 
-interface Cobranca {
-  id: string;
-  cliente_id: string;
-  mes: string;
-  consumo: number;
-  valor_m3: number;
-  taxa_fixa: number;
-  valor_total: number;
-  vencimento: string;
-  status: 'pendente' | 'pago' | 'atrasado' | 'cancelado';
-  clientes: { nome: string; numero_hidrometro: string; endereco?: string } | null;
-}
-
-interface Cliente {
-  id: string;
-  nome: string;
-  numero_hidrometro: string;
-}
-
-interface Config {
-  empresa: string;
-  valor_m3: number;
-  taxa_fixa: number;
-}
-
-interface Fatura {
-  cliente: Cliente;
-  mes: string;
-  consumo: number;
-  valorM3: number;
-  taxaFixa: number;
-  valorTotal: number;
-  vencimento: string;
-  empresa: string;
-  codigo: string;
-  barcodeNumber: string;
-}
+const inputStyle = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' };
+const labelStyle = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' };
 
 export default function CobrancaPage() {
-  const [cobrancas, setCobrancas] = useState<Cobranca[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [config, setConfig] = useState<Config>({ empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00 });
-  const [loading, setLoading] = useState(true);
-  const [busca, setBusca] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState('');
-  const [fatura, setFatura] = useState<Fatura | null>(null);
   const { user } = useAuth();
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [cobrancas, setCobrancas] = useState<any[]>([]);
+  const [config, setConfig] = useState({ empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00 });
+  const [form, setForm] = useState({ cliente_id: '', mes: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'), valor_m3: 8.50, taxa_fixa: 15.00, vencimento: '' });
+  const [consumo, setConsumo] = useState('');
+  const [total, setTotal] = useState('');
+  const [busca, setBusca] = useState('');
+  const [filtro, setFiltro] = useState('');
+  const supabase = createClient();
 
-  useEffect(() => {
-    loadData();
-  }, [busca, filtroStatus]);
-
-  const loadData = async () => {
-    setLoading(true);
-    const db = createClient();
-
-    let query = db.from('cobrancas').select('*, clientes(nome, numero_hidrometro, endereco)');
-
-    if (busca) {
-      query = query.ilike('clientes.nome', `%${busca}%`);
-    }
-
-    if (filtroStatus) {
-      query = query.eq('status', filtroStatus);
-    }
-
-    const [cobrancasRes, clientesRes, configRes] = await Promise.all([
-      query.order('criado_em', { ascending: false }),
-      db.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
-      db.from('config').select('*').limit(1),
+  const load = async () => {
+    let q = supabase.from('cobrancas').select('*, clientes(nome, numero_hidrometro, endereco)');
+    if (busca) q = q.ilike('clientes.nome', `%${busca}%`);
+    if (filtro) q = q.eq('status', filtro);
+    const [c, cl, cfg] = await Promise.all([
+      q.order('criado_em', { ascending: false }),
+      supabase.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
+      supabase.from('config').select('*').limit(1),
     ]);
-
-    setCobrancas(cobrancasRes.data || []);
-    setClientes(clientesRes.data || []);
-
-    if (configRes.data?.[0]) {
-      setConfig({
-        empresa: configRes.data[0].empresa,
-        valor_m3: configRes.data[0].valor_m3,
-        taxa_fixa: configRes.data[0].taxa_fixa,
-      });
-    }
-
-    setLoading(false);
+    setCobrancas(c.data || []);
+    setClientes(cl.data || []);
+    if (cfg.data?.[0]) setConfig({ empresa: cfg.data[0].empresa, valor_m3: cfg.data[0].valor_m3, taxa_fixa: cfg.data[0].taxa_fixa });
   };
 
-  const getLeitura = async (clienteId: string, mes: string) => {
-    const db = createClient();
-    const { data } = await db
-      .from('leituras')
-      .select('consumo')
-      .eq('cliente_id', clienteId)
-      .eq('mes', mes)
-      .maybeSingle();
+  useEffect(() => { load(); }, [busca, filtro]);
 
-    return data?.consumo || null;
+  const loadLeitura = async (clienteId: string, mes: string) => {
+    if (!clienteId || !mes) { setConsumo(''); return; }
+    const { data } = await supabase.from('leituras').select('consumo').eq('cliente_id', clienteId).eq('mes', mes).maybeSingle();
+    if (data) { setConsumo(data.consumo); setTotal(`R$ ${(Number(data.consumo) * form.valor_m3 + form.taxa_fixa).toFixed(2).replace('.', ',')}`); }
+    else { setConsumo('Leitura não encontrada'); setTotal(''); }
   };
 
-  const handleSave = async (cobranca: { cliente_id: string; mes: string; valor_m3: number; taxa_fixa: number; vencimento: string }) => {
-    const consumo = await getLeitura(cobranca.cliente_id, cobranca.mes);
-
-    if (consumo === null) {
-      alert('Leitura não encontrada para este cliente/mês!');
-      return;
-    }
-
-    const valorTotal = (parseFloat(consumo) * cobranca.valor_m3) + cobranca.taxa_fixa;
-
-    const db = createClient();
-
-    const existente = await db
-      .from('cobrancas')
-      .select('*')
-      .eq('cliente_id', cobranca.cliente_id)
-      .eq('mes', cobranca.mes)
-      .maybeSingle();
-
-    if (existente.data) {
-      alert('Já existe cobrança para este cliente/mês!');
-      return;
-    }
-
-    await db.from('cobrancas').insert({
-      ...cobranca,
-      consumo: parseFloat(consumo),
-      valor_total: valorTotal,
-      usuario_id: user?.id,
-      status: 'pendente',
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.cliente_id || !form.vencimento) return alert('Preencha todos os campos');
+    const { data: leitura } = await supabase.from('leituras').select('consumo').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
+    if (!leitura) return alert('Leitura não encontrada');
+    const existe = await supabase.from('cobrancas').select('*').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
+    if (existe.data) return alert('Já existe cobrança para este mês');
+    await supabase.from('cobrancas').insert({
+      cliente_id: form.cliente_id, mes: form.mes, consumo: Number(leitura.consumo),
+      valor_m3: form.valor_m3, taxa_fixa: form.taxa_fixa,
+      valor_total: Number(leitura.consumo) * form.valor_m3 + form.taxa_fixa,
+      vencimento: form.vencimento, usuario_id: user?.id, status: 'pendente',
     });
-
-    loadData();
+    setForm(f => ({ ...f, cliente_id: '', vencimento: '' }));
+    setConsumo(''); setTotal('');
+    load();
   };
 
-  const handleMarcarPago = async (id: string) => {
+  const marcarPago = async (id: string) => {
     if (!confirm('Marcar como pago?')) return;
-
-    const db = createClient();
-    await db.from('cobrancas').update({ status: 'pago' }).eq('id', id);
-    loadData();
+    await supabase.from('cobrancas').update({ status: 'pago' }).eq('id', id);
+    load();
   };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Excluir esta cobrança?')) return;
-
-    const db = createClient();
-    await db.from('cobrancas').delete().eq('id', id);
-    loadData();
-  };
-
-  const handleImprimir = async (cobranca: Cobranca) => {
-    const codigo = generateCode();
-
-    setFatura({
-      cliente: cobranca.clientes!,
-      mes: cobranca.mes,
-      consumo: cobranca.consumo,
-      valorM3: cobranca.valor_m3,
-      taxaFixa: cobranca.taxa_fixa,
-      valorTotal: cobranca.valor_total,
-      vencimento: cobranca.vencimento,
-      empresa: config.empresa,
-      codigo,
-      barcodeNumber: generateBarcodeNumber(codigo),
-    });
-  };
-
-  if (loading) return <p>Carregando...</p>;
 
   return (
-    <div className={styles.container}>
-      <CobrancaForm clientes={clientes} config={config} onSave={handleSave} />
-
-      <div className={styles.card}>
-        <h3>Boletos Gerados</h3>
-
-        <div className={styles.filters}>
-          <input
-            type="text"
-            placeholder="Nome do cliente..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-          />
-          <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
-            <option value="">Todos</option>
-            <option value="pendente">Pendente</option>
-            <option value="pago">Pago</option>
-            <option value="atrasado">Atrasado</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
-        </div>
-
-        <CobrancaTable
-          cobrancas={cobrancas}
-          onMarcarPago={handleMarcarPago}
-          onImprimir={handleImprimir}
-          onDelete={handleDelete}
-        />
+    <div>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Nova Cobrança</h3>
+        <form onSubmit={save} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+          <div><label style={labelStyle}>Cliente *</label>
+            <select style={inputStyle} value={form.cliente_id} onChange={e => { setForm({ ...form, cliente_id: e.target.value }); loadLeitura(e.target.value, form.mes); }} required>
+              <option value="">Selecione</option>
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div><label style={labelStyle}>Mês *</label>
+            <input type="month" style={inputStyle} value={form.mes} onChange={e => { setForm({ ...form, mes: e.target.value }); loadLeitura(form.cliente_id, e.target.value); }} required />
+          </div>
+          <div><label style={labelStyle}>Consumo</label><input style={{ ...inputStyle, background: '#F8FAFC' }} value={consumo} readOnly /></div>
+          <div><label style={labelStyle}>Valor/m³</label><input type="number" step="0.01" style={inputStyle} value={form.valor_m3} onChange={e => setForm({ ...form, valor_m3: parseFloat(e.target.value) || 0 })} /></div>
+          <div><label style={labelStyle}>Taxa Fixa</label><input type="number" step="0.01" style={inputStyle} value={form.taxa_fixa} onChange={e => setForm({ ...form, taxa_fixa: parseFloat(e.target.value) || 0 })} /></div>
+          <div><label style={labelStyle}>Total</label><input style={{ ...inputStyle, background: '#F8FAFC' }} value={total} readOnly /></div>
+          <div><label style={labelStyle}>Vencimento *</label><input type="date" style={inputStyle} value={form.vencimento} onChange={e => setForm({ ...form, vencimento: e.target.value })} required /></div>
+          <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="submit" style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>Gerar Boleto</button>
+          </div>
+        </form>
       </div>
 
-      {fatura && <FaturaModal fatura={fatura} onClose={() => setFatura(null)} />}
+      <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} style={{ ...inputStyle, maxWidth: 250 }} />
+          <select value={filtro} onChange={e => setFiltro(e.target.value)} style={{ ...inputStyle, maxWidth: 180 }}>
+            <option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="atrasado">Atrasado</option>
+          </select>
+        </div>
+        <table>
+          <thead><tr><th>Cliente</th><th>Mês</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody>
+            {cobrancas.map(c => (
+              <tr key={c.id}>
+                <td>{c.clientes?.nome}</td><td>{c.mes}</td><td>R$ {Number(c.valor_total).toFixed(2).replace('.', ',')}</td>
+                <td>{new Date(c.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                <td><span className={`badge badge-${c.status === 'pago' ? 'success' : 'warning'}`}>{c.status}</span></td>
+                <td>
+                  {c.status === 'pendente' && <button onClick={() => marcarPago(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✅</button>}
+                  <button onClick={async () => { if (confirm('Excluir?')) { await supabase.from('cobrancas').delete().eq('id', c.id); load(); } }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>🗑️</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

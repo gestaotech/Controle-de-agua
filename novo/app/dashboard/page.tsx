@@ -1,111 +1,68 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { formatCurrency, formatMonthYear } from '@/lib/utils';
-import StatsCard from '@/components/features/dashboard/StatsCard';
-import styles from './page.module.css';
-
-interface Stats {
-  totalClientes: number;
-  clientesAtivos: number;
-  pendentes: number;
-  receita: number;
-}
-
-interface Cobranca {
-  id: string;
-  mes: string;
-  valor_total: number;
-  status: string;
-  clientes: { nome: string } | null;
-}
+import { createClient } from '@/lib/supabase';
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({
-    totalClientes: 0,
-    clientesAtivos: 0,
-    pendentes: 0,
-    receita: 0,
-  });
-  const [cobrancas, setCobrancas] = useState<Cobranca[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, ativos: 0, pendentes: 0, receita: 0 });
+  const [cobrancas, setCobrancas] = useState<any[]>([]);
+  const supabase = createClient();
 
   useEffect(() => {
-    loadData();
+    (async () => {
+      const now = new Date();
+      const mes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      const [t, a, p, r, c] = await Promise.all([
+        supabase.from('clientes').select('*', { count: 'exact', head: true }),
+        supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
+        supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
+        supabase.from('pagamentos').select('valor').like('data_pagamento', `${mes}%`),
+        supabase.from('cobrancas').select('*, clientes(nome)').order('criado_em', { ascending: false }).limit(5),
+      ]);
+
+      const receita = r.data?.reduce((s, p) => s + Number(p.valor), 0) || 0;
+      setStats({ total: t.count || 0, ativos: a.count || 0, pendentes: p.count || 0, receita });
+      setCobrancas(c.data || []);
+    })();
   }, []);
 
-  const loadData = async () => {
-    const db = createClient();
-    const now = new Date();
-    const mesAtual = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-
-    const [totalClientes, clientesAtivos, pendentes, pagamentosMes, ultimasCobrancas] = await Promise.all([
-      db.from('clientes').select('*', { count: 'exact', head: true }),
-      db.from('clientes').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
-      db.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
-      db.from('pagamentos').select('valor').like('data_pagamento', `${mesAtual}%`),
-      db.from('cobrancas').select('*, clientes(nome)').order('criado_em', { ascending: false }).limit(5),
-    ]);
-
-    const receita = pagamentosMes.data
-      ? pagamentosMes.data.reduce((sum, p) => sum + parseFloat(p.valor), 0)
-      : 0;
-
-    setStats({
-      totalClientes: totalClientes.count || 0,
-      clientesAtivos: clientesAtivos.count || 0,
-      pendentes: pendentes.count || 0,
-      receita,
-    });
-
-    setCobrancas(ultimasCobrancas.data || []);
-    setLoading(false);
-  };
-
-  if (loading) return <p>Carregando...</p>;
+  const cards = [
+    { icon: '👤', label: 'Total Clientes', value: stats.total, color: '#DBEAFE' },
+    { icon: '✅', label: 'Ativos', value: stats.ativos, color: '#D1FAE5' },
+    { icon: '⏳', label: 'Pendentes', value: stats.pendentes, color: '#FEF3C7' },
+    { icon: '💰', label: 'Receita Mês', value: `R$ ${stats.receita.toFixed(2).replace('.', ',')}`, color: '#EDE9FE' },
+  ];
 
   return (
-    <div className={styles.container}>
-      <div className={styles.stats}>
-        <StatsCard icon="👤" title="Total Clientes" value={stats.totalClientes} color="blue" />
-        <StatsCard icon="✅" title="Clientes Ativos" value={stats.clientesAtivos} color="green" />
-        <StatsCard icon="⏳" title="Pendentes" value={stats.pendentes} color="orange" />
-        <StatsCard icon="💰" title="Receita Mês" value={formatCurrency(stats.receita)} color="purple" />
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 32 }}>
+        {cards.map((c, i) => (
+          <div key={i} style={{ background: '#fff', borderRadius: 12, padding: 20, display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 8, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{c.icon}</div>
+            <div>
+              <div style={{ color: '#64748B', fontSize: '0.85rem' }}>{c.label}</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{c.value}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className={styles.card}>
-        <h3>Últimas Cobranças</h3>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Últimas Cobranças</h3>
         <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Mês</th>
-              <th>Valor</th>
-              <th>Status</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Cliente</th><th>Mês</th><th>Valor</th><th>Status</th></tr></thead>
           <tbody>
             {cobrancas.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Nenhuma cobrança encontrada
-                </td>
+              <tr><td colSpan={4} style={{ textAlign: 'center', color: '#94A3B8' }}>Nenhuma cobrança</td></tr>
+            ) : cobrancas.map(c => (
+              <tr key={c.id}>
+                <td>{c.clientes?.nome}</td>
+                <td>{c.mes}</td>
+                <td>R$ {Number(c.valor_total).toFixed(2).replace('.', ',')}</td>
+                <td><span className={`badge badge-${c.status === 'pago' ? 'success' : 'warning'}`}>{c.status}</span></td>
               </tr>
-            ) : (
-              cobrancas.map(c => (
-                <tr key={c.id}>
-                  <td>{c.clientes?.nome || 'N/A'}</td>
-                  <td>{formatMonthYear(c.mes)}</td>
-                  <td>{formatCurrency(c.valor_total)}</td>
-                  <td>
-                    <span className={`badge badge-${c.status === 'pago' ? 'success' : c.status === 'pendente' ? 'warning' : 'danger'}`}>
-                      {c.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>

@@ -1,26 +1,26 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-
-export default function Home() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/login');
-      }
+export default async function Home() {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {}
+        },
+      },
     }
-  }, [user, loading, router]);
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      <p>Carregando...</p>
-    </div>
   );
+
+  const { data: { user } } = await supabase.auth.getUser();
+  redirect(user ? '/dashboard' : '/login');
 }
