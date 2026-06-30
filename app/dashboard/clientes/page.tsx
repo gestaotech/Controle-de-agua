@@ -21,13 +21,19 @@ export default function ClientesPage() {
   const [form, setForm] = useState({ nome: '', cpf: '', endereco: '', numero_hidrometro: '', telefone: '', status: 'ativo' });
   const [editId, setEditId] = useState('');
   const [busca, setBusca] = useState('');
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
   const load = async () => {
-    let q = supabase.from('clientes').select('*');
-    if (busca) q = q.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%,numero_hidrometro.ilike.%${busca}%`);
-    const { data } = await q.order('nome');
-    setClientes(data || []);
+    setErro('');
+    try {
+      let q = supabase.from('clientes').select('*');
+      if (busca) q = q.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%,numero_hidrometro.ilike.%${busca}%`);
+      const { data } = await q.order('nome');
+      setClientes(data || []);
+    } catch {
+      setErro('Erro ao carregar clientes.');
+    }
   };
 
   useEffect(() => { load(); }, [busca]);
@@ -35,14 +41,18 @@ export default function ClientesPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome || !form.numero_hidrometro) return alert('Preencha os campos obrigatórios');
-    if (editId) {
-      await supabase.from('clientes').update(form).eq('id', editId);
-    } else {
-      await supabase.from('clientes').insert(form);
+    try {
+      if (editId) {
+        await supabase.from('clientes').update(form).eq('id', editId);
+      } else {
+        await supabase.from('clientes').insert(form);
+      }
+      setForm({ nome: '', cpf: '', endereco: '', numero_hidrometro: '', telefone: '', status: 'ativo' });
+      setEditId('');
+      load();
+    } catch {
+      alert('Erro ao salvar cliente. Tente novamente.');
     }
-    setForm({ nome: '', cpf: '', endereco: '', numero_hidrometro: '', telefone: '', status: 'ativo' });
-    setEditId('');
-    load();
   };
 
   const edit = (c: Cliente) => {
@@ -52,14 +62,19 @@ export default function ClientesPage() {
 
   const del = async (id: string) => {
     if (!confirm('Excluir este cliente?')) return;
-    await supabase.from('clientes').delete().eq('id', id);
-    load();
+    try {
+      await supabase.from('clientes').delete().eq('id', id);
+      load();
+    } catch {
+      alert('Erro ao excluir cliente.');
+    }
   };
 
   return (
     <div>
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>{editId ? 'Editar Cliente' : 'Novo Cliente'}</h3>
+        {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
         <form onSubmit={save} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div><label style={lbl}>Nome *</label><input style={inp} value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} required /></div>
           <div><label style={lbl}>CPF</label><input style={inp} value={form.cpf} onChange={e => setForm({ ...form, cpf: e.target.value })} /></div>

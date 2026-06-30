@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useAuth, AuthProvider } from '@/lib/AuthProvider';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';

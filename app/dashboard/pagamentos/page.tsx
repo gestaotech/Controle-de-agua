@@ -12,18 +12,28 @@ export default function PagamentosPage() {
   const [form, setForm] = useState({ cobranca_id: '', data_pagamento: new Date().toISOString().split('T')[0], valor: '', metodo: 'dinheiro' });
   const [filtroInicio, setFiltroInicio] = useState('');
   const [filtroFim, setFiltroFim] = useState('');
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
   const load = async () => {
-    let pq = supabase.from('pagamentos').select('*, cobrancas(mes, clientes(nome))');
-    if (filtroInicio) pq = pq.gte('data_pagamento', `${filtroInicio}-01`);
-    if (filtroFim) pq = pq.lte('data_pagamento', `${filtroFim}-31`);
-    const [p, c] = await Promise.all([
-      pq.order('data_pagamento', { ascending: false }),
-      supabase.from('cobrancas').select('*, clientes(nome)').eq('status', 'pendente').order('vencimento'),
-    ]);
-    setPagamentos(p.data || []);
-    setPendentes(c.data || []);
+    setErro('');
+    try {
+      let pq = supabase.from('pagamentos').select('*, cobrancas(mes, clientes(nome))');
+      if (filtroInicio) pq = pq.gte('data_pagamento', `${filtroInicio}-01`);
+      if (filtroFim) {
+        const [ano, mes] = filtroFim.split('-').map(Number);
+        const proximoMes = new Date(ano, mes, 1).toISOString().split('T')[0];
+        pq = pq.lt('data_pagamento', proximoMes);
+      }
+      const [p, c] = await Promise.all([
+        pq.order('data_pagamento', { ascending: false }),
+        supabase.from('cobrancas').select('*, clientes(nome)').eq('status', 'pendente').order('vencimento'),
+      ]);
+      setPagamentos(p.data || []);
+      setPendentes(c.data || []);
+    } catch {
+      setErro('Erro ao carregar pagamentos.');
+    }
   };
 
   useEffect(() => { load(); }, [filtroInicio, filtroFim]);
@@ -31,11 +41,15 @@ export default function PagamentosPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cobranca_id || !form.valor) return alert('Preencha os campos');
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('pagamentos').insert({ ...form, valor: parseFloat(form.valor), usuario_id: user?.id });
-    await supabase.from('cobrancas').update({ status: 'pago' }).eq('id', form.cobranca_id);
-    setForm({ cobranca_id: '', data_pagamento: new Date().toISOString().split('T')[0], valor: '', metodo: 'dinheiro' });
-    load();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('pagamentos').insert({ ...form, valor: parseFloat(form.valor), usuario_id: user?.id });
+      await supabase.from('cobrancas').update({ status: 'pago' }).eq('id', form.cobranca_id);
+      setForm({ cobranca_id: '', data_pagamento: new Date().toISOString().split('T')[0], valor: '', metodo: 'dinheiro' });
+      load();
+    } catch {
+      alert('Erro ao registrar pagamento. Tente novamente.');
+    }
   };
 
   return (
@@ -71,9 +85,12 @@ export default function PagamentosPage() {
 
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Histórico de Pagamentos</h3>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <input type="month" value={filtroInicio} onChange={e => setFiltroInicio(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="Início" />
-          <input type="month" value={filtroFim} onChange={e => setFiltroFim(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="Fim" />
+        {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ fontWeight: 500, color: '#64748B', fontSize: '0.85rem' }}>De:</label>
+          <input type="month" value={filtroInicio} onChange={e => setFiltroInicio(e.target.value)} style={{ ...inp, maxWidth: 200 }} />
+          <label style={{ fontWeight: 500, color: '#64748B', fontSize: '0.85rem' }}>Até:</label>
+          <input type="month" value={filtroFim} onChange={e => setFiltroFim(e.target.value)} style={{ ...inp, maxWidth: 200 }} />
         </div>
         <table>
           <thead><tr><th>Cliente</th><th>Mês Ref.</th><th>Valor</th><th>Data</th><th>Método</th></tr></thead>

@@ -2,43 +2,65 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
+import { useRouter } from 'next/navigation';
 
 const inp = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' };
 const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' as const };
 
 export default function ConfigPage() {
+  const { isAdmin, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [config, setConfig] = useState({ empresa: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00 });
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
   useEffect(() => {
+    if (!authLoading && !isAdmin) router.push('/dashboard');
+  }, [isAdmin, authLoading, router]);
+
+  useEffect(() => {
+    if (authLoading || !isAdmin) return;
     (async () => {
-      const { data } = await supabase.from('config').select('*').limit(1);
-      if (data?.[0]) {
-        setConfig({
-          empresa: data[0].empresa,
-          valor_m3: data[0].valor_m3,
-          taxa_fixa: data[0].taxa_fixa,
-          multa: data[0].multa,
-          juros: data[0].juros,
-        });
+      try {
+        const { data } = await supabase.from('config').select('*').limit(1);
+        if (data?.[0]) {
+          setConfig({
+            empresa: data[0].empresa,
+            valor_m3: data[0].valor_m3,
+            taxa_fixa: data[0].taxa_fixa,
+            multa: data[0].multa,
+            juros: data[0].juros,
+          });
+        }
+      } catch {
+        setErro('Erro ao carregar configurações.');
       }
     })();
-  }, []);
+  }, [authLoading, isAdmin]);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data } = await supabase.from('config').select('id').limit(1);
-    if (data?.[0]) {
-      await supabase.from('config').update(config).eq('id', data[0].id);
-    } else {
-      await supabase.from('config').insert(config);
+    try {
+      const { data } = await supabase.from('config').select('id').limit(1);
+      if (data?.[0]) {
+        await supabase.from('config').update(config).eq('id', data[0].id);
+      } else {
+        await supabase.from('config').insert(config);
+      }
+      alert('Configurações salvas!');
+    } catch {
+      alert('Erro ao salvar configurações. Tente novamente.');
     }
-    alert('Configurações salvas!');
   };
+
+  if (authLoading) return <p>Carregando...</p>;
+  if (!isAdmin) return null;
 
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', maxWidth: 600 }}>
       <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Configurações do Sistema</h3>
+      {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
       <form onSubmit={save} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={lbl}>Nome da Empresa</label>

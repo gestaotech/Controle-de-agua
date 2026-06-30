@@ -10,37 +10,52 @@ export default function RelatoriosPage() {
   const [mesFim, setMesFim] = useState('');
   const [faturamento, setFaturamento] = useState<any[]>([]);
   const [inadimplencia, setInadimplencia] = useState<any[]>([]);
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
   const genFaturamento = async () => {
     if (!mesInicio || !mesFim) return alert('Selecione o período');
-    const { data } = await supabase.from('cobrancas').select('*, clientes(nome)').gte('mes', mesInicio).lte('mes', mesFim).order('mes');
-    setFaturamento(data || []);
+    setErro('');
+    try {
+      const { data } = await supabase.from('cobrancas').select('*, clientes(nome)').gte('mes', mesInicio).lte('mes', mesFim).order('mes');
+      setFaturamento(data || []);
+    } catch {
+      setErro('Erro ao gerar relatório de faturamento.');
+    }
   };
 
   const genInadimplencia = async () => {
-    const { data } = await supabase.from('cobrancas').select('*, clientes(nome, telefone)').in('status', ['pendente', 'atrasado']).order('vencimento');
-    const hoje = new Date();
-    setInadimplencia((data || []).map(c => ({
-      ...c,
-      dias: Math.floor((hoje.getTime() - new Date(c.vencimento).getTime()) / 86400000),
-    })));
+    setErro('');
+    try {
+      const { data } = await supabase.from('cobrancas').select('*, clientes(nome, telefone)').in('status', ['pendente', 'atrasado']).order('vencimento');
+      const hoje = new Date();
+      setInadimplencia((data || []).map(c => ({
+        ...c,
+        dias: Math.floor((hoje.getTime() - new Date(c.vencimento).getTime()) / 86400000),
+      })));
+    } catch {
+      setErro('Erro ao gerar relatório de inadimplência.');
+    }
   };
 
   const exportCSV = async (tipo: string) => {
-    let data: any[] = [];
-    if (tipo === 'clientes') { const { data: d } = await supabase.from('clientes').select('*').order('nome'); data = d || []; }
-    if (tipo === 'leituras') { const { data: d } = await supabase.from('leituras').select('*, clientes(nome)'); data = d || []; }
-    if (tipo === 'cobrancas') { const { data: d } = await supabase.from('cobrancas').select('*, clientes(nome)'); data = d || []; }
-    if (tipo === 'pagamentos') { const { data: d } = await supabase.from('pagamentos').select('*'); data = d || []; }
-    if (!data.length) return alert('Nenhum dado para exportar');
-    const headers = Object.keys(data[0]);
-    const csv = [headers.join(','), ...data.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${tipo}.csv`;
-    a.click();
+    try {
+      let data: any[] = [];
+      if (tipo === 'clientes') { const { data: d } = await supabase.from('clientes').select('*').order('nome'); data = d || []; }
+      if (tipo === 'leituras') { const { data: d } = await supabase.from('leituras').select('*, clientes(nome)'); data = d || []; }
+      if (tipo === 'cobrancas') { const { data: d } = await supabase.from('cobrancas').select('*, clientes(nome)'); data = d || []; }
+      if (tipo === 'pagamentos') { const { data: d } = await supabase.from('pagamentos').select('*'); data = d || []; }
+      if (!data.length) return alert('Nenhum dado para exportar');
+      const headers = Object.keys(data[0]);
+      const csv = [headers.join(','), ...data.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${tipo}.csv`;
+      a.click();
+    } catch {
+      alert('Erro ao exportar dados.');
+    }
   };
 
   const totalFat = faturamento.reduce((s, f) => s + Number(f.valor_total), 0);
@@ -48,6 +63,7 @@ export default function RelatoriosPage() {
 
   return (
     <div>
+      {erro && <p style={{ color: '#DC2626', marginBottom: 16 }}>{erro}</p>}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {['clientes', 'leituras', 'cobrancas', 'pagamentos'].map(t => (
           <button key={t} onClick={() => exportCSV(t)} style={{ padding: '0.625rem 1.25rem', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, cursor: 'pointer' }}>📋 Exportar {t}</button>

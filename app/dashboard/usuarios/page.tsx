@@ -2,33 +2,59 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
+import { useRouter } from 'next/navigation';
 
 export default function UsuariosPage() {
+  const { isAdmin, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
+  useEffect(() => {
+    if (!authLoading && !isAdmin) router.push('/dashboard');
+  }, [isAdmin, authLoading, router]);
+
   const load = async () => {
-    const { data } = await supabase.from('perfis').select('*').order('nome');
-    setUsuarios(data || []);
+    setErro('');
+    try {
+      const { data } = await supabase.from('perfis').select('*').order('nome');
+      setUsuarios(data || []);
+    } catch {
+      setErro('Erro ao carregar usuários.');
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!authLoading && isAdmin) load(); }, [authLoading, isAdmin]);
 
   const toggleAtivo = async (id: string, ativo: boolean) => {
-    await supabase.from('perfis').update({ ativo }).eq('id', id);
-    load();
+    try {
+      await supabase.from('perfis').update({ ativo }).eq('id', id);
+      load();
+    } catch {
+      alert('Erro ao alterar status do usuário.');
+    }
   };
 
   const togglePerfil = async (id: string, perfilAtual: string) => {
     const novo = perfilAtual === 'admin' ? 'leitor' : 'admin';
     if (!confirm(`Alterar perfil para ${novo}?`)) return;
-    await supabase.from('perfis').update({ perfil: novo }).eq('id', id);
-    load();
+    try {
+      await supabase.from('perfis').update({ perfil: novo }).eq('id', id);
+      load();
+    } catch {
+      alert('Erro ao alterar perfil do usuário.');
+    }
   };
+
+  if (authLoading) return <p>Carregando...</p>;
+  if (!isAdmin) return null;
 
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
       <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Gestão de Usuários</h3>
+      {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
       <table>
         <thead><tr><th>Nome</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>

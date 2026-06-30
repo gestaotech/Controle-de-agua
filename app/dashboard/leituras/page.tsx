@@ -14,15 +14,21 @@ export default function LeiturasPage() {
   const [form, setForm] = useState({ cliente_id: '', mes: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'), anterior: 0, atual: 0 });
   const [consumo, setConsumo] = useState(0);
   const [fatura, setFatura] = useState<any>(null);
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
   const load = async () => {
-    const [c, l] = await Promise.all([
-      supabase.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
-      supabase.from('leituras').select('*, clientes(nome, numero_hidrometro)').order('mes', { ascending: false }),
-    ]);
-    setClientes(c.data || []);
-    setLeituras(l.data || []);
+    setErro('');
+    try {
+      const [c, l] = await Promise.all([
+        supabase.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
+        supabase.from('leituras').select('*, clientes(nome, numero_hidrometro)').order('mes', { ascending: false }),
+      ]);
+      setClientes(c.data || []);
+      setLeituras(l.data || []);
+    } catch {
+      setErro('Erro ao carregar leituras.');
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -37,32 +43,40 @@ export default function LeiturasPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cliente_id || form.atual < form.anterior) return alert('Verifique os dados');
-    const existente = await supabase.from('leituras').select('*').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
-    if (existente.data) {
-      await supabase.from('leituras').update({ anterior: form.anterior, atual: form.atual }).eq('id', existente.data.id);
-    } else {
-      await supabase.from('leituras').insert({ ...form, usuario_id: user?.id });
+    try {
+      const existente = await supabase.from('leituras').select('*').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
+      if (existente.data) {
+        await supabase.from('leituras').update({ anterior: form.anterior, atual: form.atual }).eq('id', existente.data.id);
+      } else {
+        await supabase.from('leituras').insert({ ...form, usuario_id: user?.id });
+      }
+      setForm(f => ({ ...f, atual: 0 }));
+      load();
+    } catch {
+      alert('Erro ao salvar leitura. Tente novamente.');
     }
-    setForm(f => ({ ...f, atual: 0 }));
-    load();
   };
 
   const gerarFatura = async (leitura: any) => {
-    const { data: cfg } = await supabase.from('config').select('*').limit(1);
-    const c = cfg?.[0] || { empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00 };
-    const venc = new Date();
-    venc.setDate(venc.getDate() + 10);
-    setFatura({
-      cliente: leitura.clientes,
-      mes: leitura.mes,
-      consumo: leitura.consumo,
-      valorM3: Number(c.valor_m3),
-      taxaFixa: Number(c.taxa_fixa),
-      valorTotal: Number(leitura.consumo) * Number(c.valor_m3) + Number(c.taxa_fixa),
-      vencimento: venc.toISOString().split('T')[0],
-      empresa: c.empresa,
-      codigo: 'AG' + Date.now().toString().slice(-8),
-    });
+    try {
+      const { data: cfg } = await supabase.from('config').select('*').limit(1);
+      const c = cfg?.[0] || { empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00 };
+      const venc = new Date();
+      venc.setDate(venc.getDate() + 10);
+      setFatura({
+        cliente: leitura.clientes,
+        mes: leitura.mes,
+        consumo: leitura.consumo,
+        valorM3: Number(c.valor_m3),
+        taxaFixa: Number(c.taxa_fixa),
+        valorTotal: Number(leitura.consumo) * Number(c.valor_m3) + Number(c.taxa_fixa),
+        vencimento: venc.toISOString().split('T')[0],
+        empresa: c.empresa,
+        codigo: 'AG' + Date.now().toString().slice(-8),
+      });
+    } catch {
+      alert('Erro ao gerar fatura.');
+    }
   };
 
   const fecharFatura = () => setFatura(null);
@@ -71,6 +85,7 @@ export default function LeiturasPage() {
     <div>
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Nova Leitura</h3>
+        {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
         <form onSubmit={save} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div>
             <label style={lbl}>Cliente *</label>

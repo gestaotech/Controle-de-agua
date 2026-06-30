@@ -17,20 +17,26 @@ export default function CobrancaPage() {
   const [total, setTotal] = useState('');
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('');
+  const [erro, setErro] = useState('');
   const supabase = createClient();
 
   const load = async () => {
-    let q = supabase.from('cobrancas').select('*, clientes(nome, numero_hidrometro, endereco)');
-    if (busca) q = q.ilike('clientes.nome', `%${busca}%`);
-    if (filtro) q = q.eq('status', filtro);
-    const [c, cl, cfg] = await Promise.all([
-      q.order('criado_em', { ascending: false }),
-      supabase.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
-      supabase.from('config').select('*').limit(1),
-    ]);
-    setCobrancas(c.data || []);
-    setClientes(cl.data || []);
-    if (cfg.data?.[0]) setConfig({ empresa: cfg.data[0].empresa, valor_m3: cfg.data[0].valor_m3, taxa_fixa: cfg.data[0].taxa_fixa });
+    setErro('');
+    try {
+      let q = supabase.from('cobrancas').select('*, clientes(nome, numero_hidrometro, endereco)');
+      if (busca) q = q.ilike('clientes.nome', `%${busca}%`);
+      if (filtro) q = q.eq('status', filtro);
+      const [c, cl, cfg] = await Promise.all([
+        q.order('criado_em', { ascending: false }),
+        supabase.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
+        supabase.from('config').select('*').limit(1),
+      ]);
+      setCobrancas(c.data || []);
+      setClientes(cl.data || []);
+      if (cfg.data?.[0]) setConfig({ empresa: cfg.data[0].empresa, valor_m3: cfg.data[0].valor_m3, taxa_fixa: cfg.data[0].taxa_fixa });
+    } catch {
+      setErro('Erro ao carregar cobranças.');
+    }
   };
 
   useEffect(() => { load(); }, [busca, filtro]);
@@ -50,38 +56,51 @@ export default function CobrancaPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cliente_id || !form.vencimento) return alert('Preencha todos os campos');
-    const { data: leitura } = await supabase.from('leituras').select('consumo').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
-    if (!leitura) return alert('Leitura não encontrada para este mês');
-    const existe = await supabase.from('cobrancas').select('*').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
-    if (existe.data) return alert('Já existe cobrança para este mês');
-    await supabase.from('cobrancas').insert({
-      cliente_id: form.cliente_id, mes: form.mes, consumo: Number(leitura.consumo),
-      valor_m3: form.valor_m3, taxa_fixa: form.taxa_fixa,
-      valor_total: Number(leitura.consumo) * form.valor_m3 + form.taxa_fixa,
-      vencimento: form.vencimento, usuario_id: user?.id, status: 'pendente',
-    });
-    setForm(f => ({ ...f, cliente_id: '', vencimento: '' }));
-    setConsumo('');
-    setTotal('');
-    load();
+    try {
+      const { data: leitura } = await supabase.from('leituras').select('consumo').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
+      if (!leitura) return alert('Leitura não encontrada para este mês');
+      const existe = await supabase.from('cobrancas').select('*').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
+      if (existe.data) return alert('Já existe cobrança para este mês');
+      await supabase.from('cobrancas').insert({
+        cliente_id: form.cliente_id, mes: form.mes, consumo: Number(leitura.consumo),
+        valor_m3: form.valor_m3, taxa_fixa: form.taxa_fixa,
+        valor_total: Number(leitura.consumo) * form.valor_m3 + form.taxa_fixa,
+        vencimento: form.vencimento, usuario_id: user?.id, status: 'pendente',
+      });
+      setForm(f => ({ ...f, cliente_id: '', vencimento: '' }));
+      setConsumo('');
+      setTotal('');
+      load();
+    } catch {
+      alert('Erro ao gerar cobrança. Tente novamente.');
+    }
   };
 
   const marcarPago = async (id: string) => {
     if (!confirm('Marcar como pago?')) return;
-    await supabase.from('cobrancas').update({ status: 'pago' }).eq('id', id);
-    load();
+    try {
+      await supabase.from('cobrancas').update({ status: 'pago' }).eq('id', id);
+      load();
+    } catch {
+      alert('Erro ao atualizar status.');
+    }
   };
 
   const del = async (id: string) => {
     if (!confirm('Excluir esta cobrança?')) return;
-    await supabase.from('cobrancas').delete().eq('id', id);
-    load();
+    try {
+      await supabase.from('cobrancas').delete().eq('id', id);
+      load();
+    } catch {
+      alert('Erro ao excluir cobrança.');
+    }
   };
 
   return (
     <div>
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Nova Cobrança</h3>
+        {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
         <form onSubmit={save} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div>
             <label style={lbl}>Cliente *</label>
