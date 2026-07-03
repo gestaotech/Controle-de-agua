@@ -11,7 +11,7 @@ const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBott
 export default function ConfigPage() {
   const { isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00 });
+  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00, pix_tipo: '', pix_chave: '' });
   const [erro, setErro] = useState('');
   const supabase = createClient();
 
@@ -33,6 +33,8 @@ export default function ConfigPage() {
             taxa_fixa: data[0].taxa_fixa,
             multa: data[0].multa,
             juros: data[0].juros,
+            pix_tipo: data[0].pix_tipo || '',
+            pix_chave: data[0].pix_chave || '',
           });
         }
       } catch {
@@ -92,6 +94,26 @@ export default function ConfigPage() {
           <label style={lbl}>Juros ao Mês (%)</label>
           <input type="number" step="0.01" style={inp} value={config.juros} onChange={e => setConfig({ ...config, juros: parseFloat(e.target.value) || 0 })} />
         </div>
+
+        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>
+          <h4 style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: 12 }}>Pagamento PIX</h4>
+        </div>
+        <div>
+          <label style={lbl}>Tipo da Chave PIX</label>
+          <select style={inp} value={config.pix_tipo} onChange={e => setConfig({ ...config, pix_tipo: e.target.value })}>
+            <option value="">Não configurado</option>
+            <option value="cpf">CPF</option>
+            <option value="cnpj">CNPJ</option>
+            <option value="email">E-mail</option>
+            <option value="telefone">Telefone</option>
+            <option value="aleatoria">Chave Aleatória</option>
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Chave PIX</label>
+          <input style={inp} value={config.pix_chave} onChange={e => setConfig({ ...config, pix_chave: e.target.value })} placeholder={config.pix_tipo === 'cpf' ? '000.000.000-00' : config.pix_tipo === 'email' ? 'email@exemplo.com' : 'Sua chave PIX'} />
+        </div>
+
         <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
           <button type="submit" style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>Salvar Configurações</button>
         </div>
