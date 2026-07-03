@@ -26,6 +26,7 @@ export default function CadastrarLeitorPage() {
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
   const [linkGerado, setLinkGerado] = useState('');
+  const [senhaGerada, setSenhaGerada] = useState('');
   const [leitores, setLeitores] = useState<Leitor[]>([]);
   const [leitorSelecionado, setLeitorSelecionado] = useState<Leitor | null>(null);
   const [senhaModal, setSenhaModal] = useState('');
@@ -53,6 +54,7 @@ export default function CadastrarLeitorPage() {
     setErro('');
     setSucesso('');
     setLinkGerado('');
+    setSenhaGerada('');
 
     if (!form.nome || !form.senha || !form.bairro_condominio) {
       return alert('Preencha nome, bairro/condomínio e senha');
@@ -88,6 +90,7 @@ export default function CadastrarLeitorPage() {
 
       const link = `${window.location.origin}/login`;
       setLinkGerado(link);
+      setSenhaGerada(form.senha);
       setSucesso(`Leitor "${form.nome}" cadastrado com sucesso!`);
       setForm({ nome: '', contato: '', bairro_condominio: '', senha: '', confirmarSenha: '' });
       loadLeitores();
@@ -154,6 +157,12 @@ export default function CadastrarLeitorPage() {
         {linkGerado && (
           <div style={{ background: '#EFF6FF', color: '#1E40AF', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem', wordBreak: 'break-all' }}>
             <strong>Link de acesso:</strong> {linkGerado}
+          </div>
+        )}
+        {senhaGerada && (
+          <div style={{ background: '#FEF3C7', color: '#92400E', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem', border: '1px solid #F59E0B' }}>
+            <strong>Senha do leitor:</strong> <code style={{ background: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: 1 }}>{senhaGerada}</code>
+            <p style={{ marginTop: 6, fontSize: '0.8rem', opacity: 0.8 }}>Anote ou copie esta senha. Ela não poderá ser visualizada novamente.</p>
           </div>
         )}
 
@@ -260,6 +269,9 @@ export default function CadastrarLeitorPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                     <span style={{ color: '#64748B', fontSize: '0.85rem' }}>Email de login</span>
                     <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>{leitorSelecionado.nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local</span>
+                  </div>
+                  <div style={{ background: '#FEF3C7', color: '#92400E', padding: '0.75rem', borderRadius: 8, fontSize: '0.85rem', marginTop: 4 }}>
+                    A senha é definida no momento do cadastro e não pode ser visualizada novamente por segurança. Se esqueceu, cadastre o leitor novamente.
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
