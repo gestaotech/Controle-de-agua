@@ -11,7 +11,7 @@ const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBott
 export default function ConfigPage() {
   const { isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [config, setConfig] = useState({ empresa: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00 });
+  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00 });
   const [erro, setErro] = useState('');
   const supabase = createClient();
 
@@ -26,7 +26,9 @@ export default function ConfigPage() {
         const { data } = await supabase.from('config').select('*').limit(1);
         if (data?.[0]) {
           setConfig({
-            empresa: data[0].empresa,
+            empresa: data[0].empresa || '',
+            cnpj: data[0].cnpj || '',
+            contato: data[0].contato || '',
             valor_m3: data[0].valor_m3,
             taxa_fixa: data[0].taxa_fixa,
             multa: data[0].multa,
@@ -65,6 +67,14 @@ export default function ConfigPage() {
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={lbl}>Nome da Empresa</label>
           <input style={inp} value={config.empresa} onChange={e => setConfig({ ...config, empresa: e.target.value })} />
+        </div>
+        <div>
+          <label style={lbl}>CNPJ</label>
+          <input style={inp} value={config.cnpj} onChange={e => setConfig({ ...config, cnpj: e.target.value })} placeholder="00.000.000/0000-00" />
+        </div>
+        <div>
+          <label style={lbl}>Contato</label>
+          <input style={inp} value={config.contato} onChange={e => setConfig({ ...config, contato: e.target.value })} placeholder="(00) 00000-0000" />
         </div>
         <div>
           <label style={lbl}>Valor por m³ (R$)</label>

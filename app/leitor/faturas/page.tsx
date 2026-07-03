@@ -16,7 +16,7 @@ export default function LeitorFaturasPage() {
     setErro('');
     try {
       const { data } = await supabase
-        .from('leituras').select('*, clientes(nome, numero_hidrometro, endereco)')
+        .from('leituras').select('*, unidades(endereco, numero_hidrometro, bairro_condominio)')
         .eq('usuario_id', user.id)
         .order('mes', { ascending: false });
       setLeituras(data || []);
@@ -30,11 +30,11 @@ export default function LeitorFaturasPage() {
   const gerarFatura = async (leitura: any) => {
     try {
       const { data: cfg } = await supabase.from('config').select('*').limit(1);
-      const c = cfg?.[0] || { empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00 };
+      const c = cfg?.[0] || { empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00, cnpj: '', contato: '' };
       const venc = new Date();
       venc.setDate(venc.getDate() + 10);
       setFatura({
-        cliente: leitura.clientes,
+        unidade: leitura.unidades,
         mes: leitura.mes,
         consumo: leitura.consumo,
         valorM3: Number(c.valor_m3),
@@ -42,6 +42,8 @@ export default function LeitorFaturasPage() {
         valorTotal: Number(leitura.consumo) * Number(c.valor_m3) + Number(c.taxa_fixa),
         vencimento: venc.toISOString().split('T')[0],
         empresa: c.empresa,
+        cnpj: c.cnpj,
+        contato: c.contato,
         codigo: 'AG' + Date.now().toString().slice(-8),
       });
     } catch {
@@ -57,11 +59,11 @@ export default function LeitorFaturasPage() {
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Gerar Faturas</h3>
         {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
         <table>
-          <thead><tr><th>Cliente</th><th>Mês</th><th>Consumo</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Unidade</th><th>Mês</th><th>Consumo</th><th>Ações</th></tr></thead>
           <tbody>
             {leituras.map(l => (
               <tr key={l.id}>
-                <td>{l.clientes?.nome}</td>
+                <td>{l.unidades?.endereco} - {l.unidades?.numero_hidrometro}</td>
                 <td>{l.mes}</td>
                 <td>{l.consumo} m³</td>
                 <td>
@@ -79,11 +81,13 @@ export default function LeitorFaturasPage() {
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 550, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ textAlign: 'center', borderBottom: '2px solid #1E293B', paddingBottom: 16, marginBottom: 20 }}>
               <h2>{fatura.empresa}</h2>
+              {fatura.cnpj && <p style={{ color: '#64748B', fontSize: '0.85rem' }}>CNPJ: {fatura.cnpj}</p>}
               <p style={{ color: '#64748B' }}>FATURA DE FORNECIMENTO DE ÁGUA</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Cliente</label><div>{fatura.cliente.nome}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Hidrômetro</label><div>{fatura.cliente.numero_hidrometro}</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Endereço</label><div>{fatura.unidade?.endereco}</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Hidrômetro</label><div>{fatura.unidade?.numero_hidrometro}</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Bairro</label><div>{fatura.unidade?.bairro_condominio}</div></div>
               <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Referência</label><div>{fatura.mes}</div></div>
               <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Consumo</label><div>{fatura.consumo} m³</div></div>
               <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Vencimento</label><div>{new Date(fatura.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</div></div>
@@ -98,6 +102,9 @@ export default function LeitorFaturasPage() {
                 <div style={{ fontFamily: 'monospace', background: '#F8FAFC', padding: '8px 16px', borderRadius: 4 }}>{fatura.codigo}</div>
               </div>
             </div>
+            {fatura.contato && (
+              <p style={{ textAlign: 'center', color: '#64748B', fontSize: '0.8rem', marginBottom: 16 }}>Contato: {fatura.contato}</p>
+            )}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
               <button onClick={() => window.print()} style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>🖨️ Imprimir</button>
               <button onClick={fecharFatura} style={{ padding: '0.625rem 1.5rem', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 8, cursor: 'pointer' }}>Fechar</button>

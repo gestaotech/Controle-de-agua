@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [nome, setNome] = useState('');
+  const [senha, setSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
-  const [nome, setNome] = useState('');
   const router = useRouter();
   const supabase = createClient();
 
@@ -21,37 +21,59 @@ export default function LoginPage() {
 
     try {
       if (isRegister) {
-        const { data, error } = await supabase.auth.signUp({
+        if (senha !== confirmarSenha) {
+          setError('As senhas não conferem');
+          setLoading(false);
+          return;
+        }
+        if (senha.length < 6) {
+          setError('A senha deve ter pelo menos 6 caracteres');
+          setLoading(false);
+          return;
+        }
+
+        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local`;
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
-          password,
+          password: senha,
           options: { data: { nome } },
         });
-        if (error) throw error;
+        if (signUpError) throw signUpError;
+
         if (data.user) {
           await supabase.from('perfis').insert({
             id: data.user.id,
             nome,
-            perfil: 'leitor',
+            perfil: 'admin',
             ativo: true,
+            bairro_condominio: '',
+            contato: '',
           });
         }
-        alert('Conta criada! Verifique seu email.');
+        alert('Conta de administrador criada com sucesso!');
         setIsRegister(false);
+        setNome('');
+        setSenha('');
+        setConfirmarSenha('');
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (!nome || !senha) {
+          setError('Preencha nome e senha');
+          setLoading(false);
+          return;
+        }
+        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local`;
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password: senha });
+        if (signInError) throw signInError;
 
         if (data.user) {
           const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', data.user.id).single();
           const redirectUrl = profile?.perfil === 'admin' ? '/dashboard' : '/leitor';
           router.push(redirectUrl);
-        } else {
-          router.push('/dashboard');
         }
         router.refresh();
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login');
+      setError(err.message || 'Erro ao processar');
     } finally {
       setLoading(false);
     }
@@ -92,26 +114,14 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit}>
-          {isRegister && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontWeight: 500, color: '#64748B', marginBottom: 4, fontSize: '0.85rem' }}>Nome</label>
-              <input
-                type="text"
-                value={nome}
-                onChange={e => setNome(e.target.value)}
-                required
-                style={{ width: '100%', padding: '0.75rem', border: '1px solid #E2E8F0', borderRadius: 8 }}
-              />
-            </div>
-          )}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontWeight: 500, color: '#64748B', marginBottom: 4, fontSize: '0.85rem' }}>Email</label>
+            <label style={{ display: 'block', fontWeight: 500, color: '#64748B', marginBottom: 4, fontSize: '0.85rem' }}>Nome</label>
             <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              type="text"
+              value={nome}
+              onChange={e => setNome(e.target.value)}
               required
-              placeholder="seu@email.com"
+              placeholder="Seu nome"
               style={{ width: '100%', padding: '0.75rem', border: '1px solid #E2E8F0', borderRadius: 8 }}
             />
           </div>
@@ -119,13 +129,26 @@ export default function LoginPage() {
             <label style={{ display: 'block', fontWeight: 500, color: '#64748B', marginBottom: 4, fontSize: '0.85rem' }}>Senha</label>
             <input
               type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
+              value={senha}
+              onChange={e => setSenha(e.target.value)}
               required
               placeholder="••••••••"
               style={{ width: '100%', padding: '0.75rem', border: '1px solid #E2E8F0', borderRadius: 8 }}
             />
           </div>
+          {isRegister && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontWeight: 500, color: '#64748B', marginBottom: 4, fontSize: '0.85rem' }}>Confirmar Senha</label>
+              <input
+                type="password"
+                value={confirmarSenha}
+                onChange={e => setConfirmarSenha(e.target.value)}
+                required
+                placeholder="Repita a senha"
+                style={{ width: '100%', padding: '0.75rem', border: '1px solid #E2E8F0', borderRadius: 8 }}
+              />
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}
@@ -142,14 +165,14 @@ export default function LoginPage() {
               opacity: loading ? 0.7 : 1,
             }}
           >
-            {loading ? 'Entrando...' : isRegister ? 'Criar Conta' : 'Entrar'}
+            {loading ? 'Processando...' : isRegister ? 'Criar Conta Admin' : 'Entrar'}
           </button>
         </form>
 
         <p style={{ textAlign: 'center', marginTop: 16, color: '#64748B', fontSize: '0.9rem' }}>
-          {isRegister ? 'Já tem conta?' : 'Não tem conta?'}{' '}
+          {isRegister ? 'Já tem conta?' : 'Primeiro acesso?'}{' '}
           <a href="#" onClick={e => { e.preventDefault(); setIsRegister(!isRegister); setError(''); }}>
-            {isRegister ? 'Fazer login' : 'Criar conta'}
+            {isRegister ? 'Fazer login' : 'Criar conta admin'}
           </a>
         </p>
       </div>

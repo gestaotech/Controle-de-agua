@@ -10,6 +10,8 @@ interface Profile {
   nome: string;
   perfil: 'admin' | 'leitor';
   ativo: boolean;
+  bairro_condominio: string;
+  contato: string;
 }
 
 interface AuthCtx {

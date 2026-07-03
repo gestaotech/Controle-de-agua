@@ -8,47 +8,56 @@ const inp = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2
 const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' as const };
 
 export default function LeitorLeiturasPage() {
-  const { user } = useAuth();
-  const [clientes, setClientes] = useState<any[]>([]);
+  const { user, profile } = useAuth();
+  const [unidades, setUnidades] = useState<any[]>([]);
   const [leituras, setLeituras] = useState<any[]>([]);
-  const [form, setForm] = useState({ cliente_id: '', mes: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'), anterior: 0, atual: 0 });
+  const [form, setForm] = useState({
+    unidade_id: '', mes: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'),
+    anterior: 0, atual: 0,
+  });
   const [consumo, setConsumo] = useState(0);
   const [erro, setErro] = useState('');
   const supabase = createClient();
 
   const load = async () => {
-    if (!user) return;
+    if (!user || !profile) return;
     setErro('');
     try {
-      const [c, l] = await Promise.all([
-        supabase.from('clientes').select('id, nome, numero_hidrometro').eq('status', 'ativo').order('nome'),
-        supabase.from('leituras').select('*, clientes(nome, numero_hidrometro)').eq('usuario_id', user.id).order('mes', { ascending: false }),
+      const bairro = profile.bairro_condominio;
+      const [u, l] = await Promise.all([
+        supabase.from('unidades').select('id, endereco, numero_hidrometro, leitura_inicial').eq('bairro_condominio', bairro).eq('status', 'ativo').order('endereco'),
+        supabase.from('leituras').select('*, unidades(endereco, numero_hidrometro)').eq('usuario_id', user.id).order('mes', { ascending: false }),
       ]);
-      setClientes(c.data || []);
+      setUnidades(u.data || []);
       setLeituras(l.data || []);
     } catch {
       setErro('Erro ao carregar leituras.');
     }
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user, profile]);
   useEffect(() => { setConsumo(form.atual - form.anterior); }, [form.atual, form.anterior]);
 
-  const loadAnterior = async (clienteId: string) => {
-    if (!clienteId) return;
-    const { data } = await supabase.from('leituras').select('*').eq('cliente_id', clienteId).order('mes', { ascending: false }).limit(1).maybeSingle();
-    setForm(f => ({ ...f, anterior: data?.atual || 0 }));
+  const loadAnterior = async (unidadeId: string) => {
+    if (!unidadeId) return;
+    const { data } = await supabase.from('leituras').select('*').eq('unidade_id', unidadeId).order('mes', { ascending: false }).limit(1).maybeSingle();
+    if (data) {
+      setForm(f => ({ ...f, anterior: data.atual || 0 }));
+    } else {
+      const { data: unidade } = await supabase.from('unidades').select('leitura_inicial').eq('id', unidadeId).single();
+      setForm(f => ({ ...f, anterior: Number(unidade?.leitura_inicial) || 0 }));
+    }
   };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.cliente_id || form.atual < form.anterior) return alert('Verifique os dados');
+    if (!form.unidade_id || form.atual < form.anterior) return alert('Verifique os dados');
     try {
-      const existente = await supabase.from('leituras').select('*').eq('cliente_id', form.cliente_id).eq('mes', form.mes).maybeSingle();
+      const existente = await supabase.from('leituras').select('*').eq('unidade_id', form.unidade_id).eq('mes', form.mes).maybeSingle();
       if (existente.data) {
         await supabase.from('leituras').update({ anterior: form.anterior, atual: form.atual }).eq('id', existente.data.id);
       } else {
-        await supabase.from('leituras').insert({ ...form, usuario_id: user?.id });
+        await supabase.from('leituras').insert({ unidade_id: form.unidade_id, mes: form.mes, anterior: form.anterior, atual: form.atual, usuario_id: user?.id });
       }
       setForm(f => ({ ...f, atual: 0 }));
       load();
@@ -64,10 +73,10 @@ export default function LeitorLeiturasPage() {
         {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
         <form onSubmit={save} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div>
-            <label style={lbl}>Cliente *</label>
-            <select style={inp} value={form.cliente_id} onChange={e => { setForm({ ...form, cliente_id: e.target.value }); loadAnterior(e.target.value); }} required>
+            <label style={lbl}>Unidade *</label>
+            <select style={inp} value={form.unidade_id} onChange={e => { setForm({ ...form, unidade_id: e.target.value }); loadAnterior(e.target.value); }} required>
               <option value="">Selecione</option>
-              {clientes.map(c => <option key={c.id} value={c.id}>{c.nome} ({c.numero_hidrometro})</option>)}
+              {unidades.map(u => <option key={u.id} value={u.id}>{u.endereco} ({u.numero_hidrometro})</option>)}
             </select>
           </div>
           <div><label style={lbl}>Mês/Ano *</label><input type="month" style={inp} value={form.mes} onChange={e => setForm({ ...form, mes: e.target.value })} required /></div>
@@ -83,11 +92,15 @@ export default function LeitorLeiturasPage() {
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Minhas Leituras</h3>
         <table>
-          <thead><tr><th>Cliente</th><th>Mês</th><th>Anterior</th><th>Atual</th><th>Consumo</th></tr></thead>
+          <thead><tr><th>Unidade</th><th>Mês</th><th>Anterior</th><th>Atual</th><th>Consumo</th></tr></thead>
           <tbody>
             {leituras.map(l => (
               <tr key={l.id}>
-                <td>{l.clientes?.nome}</td><td>{l.mes}</td><td>{l.anterior} m³</td><td>{l.atual} m³</td><td><strong>{l.consumo} m³</strong></td>
+                <td>{l.unidades?.endereco} - {l.unidades?.numero_hidrometro}</td>
+                <td>{l.mes}</td>
+                <td>{l.anterior} m³</td>
+                <td>{l.atual} m³</td>
+                <td><strong>{l.consumo} m³</strong></td>
               </tr>
             ))}
             {leituras.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', color: '#94A3B8' }}>Nenhuma leitura</td></tr>}

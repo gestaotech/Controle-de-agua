@@ -9,7 +9,6 @@ const NAV = [
   { href: '/leitor', icon: '📊', label: 'Painel' },
   { href: '/leitor/leituras', icon: '📏', label: 'Leituras' },
   { href: '/leitor/faturas', icon: '📄', label: 'Faturas' },
-  { href: '/leitor/cobrancas', icon: '💰', label: 'Cobranças' },
   { href: '/leitor/perfil', icon: '👤', label: 'Meu Perfil' },
 ];
 
@@ -52,7 +51,7 @@ function LeitorShell({ children }: { children: ReactNode }) {
           <span style={{ fontSize: 28 }}>💧</span>
           <div>
             <h1 style={{ fontSize: '1rem' }}>Controle de Água</h1>
-            <span style={{ fontSize: '0.75rem', opacity: 0.6, background: '#3B82F6', padding: '2px 8px', borderRadius: 4 }}>Leitor</span>
+            <span style={{ fontSize: '0.75rem', opacity: 0.6, background: '#10B981', padding: '2px 8px', borderRadius: 4 }}>Leitor</span>
           </div>
         </div>
 
@@ -81,12 +80,12 @@ function LeitorShell({ children }: { children: ReactNode }) {
 
         <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
               {profile?.nome?.charAt(0) || 'L'}
             </div>
             <div>
               <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{profile?.nome}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Leitor</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{profile?.bairro_condominio || 'Leitor'}</div>
             </div>
           </div>
           <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>🚪</button>
