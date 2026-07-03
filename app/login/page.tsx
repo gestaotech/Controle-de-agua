@@ -41,7 +41,7 @@ export default function LoginPage() {
         if (signUpError) throw signUpError;
 
         if (data.user) {
-          await supabase.from('perfis').insert({
+          const { error: profileError } = await supabase.from('perfis').insert({
             id: data.user.id,
             nome,
             perfil: 'admin',
@@ -49,12 +49,10 @@ export default function LoginPage() {
             bairro_condominio: '',
             contato: '',
           });
+          if (profileError) throw profileError;
         }
-        alert('Conta de administrador criada com sucesso!');
-        setIsRegister(false);
-        setNome('');
-        setSenha('');
-        setConfirmarSenha('');
+        router.push('/dashboard');
+        router.refresh();
       } else {
         if (!nome || !senha) {
           setError('Preencha nome e senha');
