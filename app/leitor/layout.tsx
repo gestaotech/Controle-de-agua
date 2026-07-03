@@ -6,22 +6,15 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 const NAV = [
-  { href: '/dashboard', icon: '📊', label: 'Dashboard' },
-  { href: '/dashboard/clientes', icon: '👤', label: 'Clientes' },
-  { href: '/dashboard/leituras', icon: '📏', label: 'Leituras' },
-  { href: '/dashboard/cobranca', icon: '💰', label: 'Cobrança' },
-  { href: '/dashboard/pagamentos', icon: '✅', label: 'Pagamentos' },
-  { href: '/dashboard/relatorios', icon: '📈', label: 'Relatórios' },
+  { href: '/leitor', icon: '📊', label: 'Painel' },
+  { href: '/leitor/leituras', icon: '📏', label: 'Leituras' },
+  { href: '/leitor/faturas', icon: '📄', label: 'Faturas' },
+  { href: '/leitor/cobrancas', icon: '💰', label: 'Cobranças' },
+  { href: '/leitor/perfil', icon: '👤', label: 'Meu Perfil' },
 ];
 
-const ADMIN_NAV = [
-  { href: '/dashboard/usuarios', icon: '👥', label: 'Usuários' },
-  { href: '/dashboard/cadastrar-leitor', icon: '➕', label: 'Cadastrar Leitor' },
-  { href: '/dashboard/config', icon: '⚙️', label: 'Configurações' },
-];
-
-function DashboardShell({ children }: { children: ReactNode }) {
-  const { user, profile, loading, isAdmin, signOut } = useAuth();
+function LeitorShell({ children }: { children: ReactNode }) {
+  const { user, profile, loading, signOut } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -35,8 +28,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
 
   if (!user) return null;
 
-  const items = [...NAV, ...(isAdmin ? ADMIN_NAV : [])];
-  const pageTitle = items.find(i => i.href === pathname)?.label || 'Painel';
+  const pageTitle = NAV.find(i => i.href === pathname)?.label || 'Área do Leitor';
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -58,11 +50,14 @@ function DashboardShell({ children }: { children: ReactNode }) {
       >
         <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <span style={{ fontSize: 28 }}>💧</span>
-          <h1 style={{ fontSize: '1rem' }}>Controle de Água</h1>
+          <div>
+            <h1 style={{ fontSize: '1rem' }}>Controle de Água</h1>
+            <span style={{ fontSize: '0.75rem', opacity: 0.6, background: '#3B82F6', padding: '2px 8px', borderRadius: 4 }}>Leitor</span>
+          </div>
         </div>
 
         <nav style={{ flex: 1, padding: '1rem 0', overflowY: 'auto' }}>
-          {items.map(item => (
+          {NAV.map(item => (
             <Link
               key={item.href}
               href={item.href}
@@ -87,11 +82,11 @@ function DashboardShell({ children }: { children: ReactNode }) {
         <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600 }}>
-              {profile?.nome?.charAt(0) || 'U'}
+              {profile?.nome?.charAt(0) || 'L'}
             </div>
             <div>
               <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{profile?.nome}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{profile?.perfil === 'admin' ? 'Admin' : 'Leitor'}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Leitor</div>
             </div>
           </div>
           <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>🚪</button>
@@ -118,10 +113,10 @@ function DashboardShell({ children }: { children: ReactNode }) {
   );
 }
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default function LeitorLayout({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <LeitorShell>{children}</LeitorShell>
     </AuthProvider>
   );
 }

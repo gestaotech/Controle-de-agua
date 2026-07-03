@@ -27,17 +27,35 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  const isDashboard = request.nextUrl.pathname.startsWith('/dashboard');
+  const isLeitor = request.nextUrl.pathname.startsWith('/leitor');
+  const isLogin = request.nextUrl.pathname === '/login';
+
+  if (!user && (isDashboard || isLeitor)) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (user && request.nextUrl.pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  if (user && isLogin) {
+    const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', user.id).single();
+    const redirectUrl = profile?.perfil === 'admin' ? '/dashboard' : '/leitor';
+    return NextResponse.redirect(new URL(redirectUrl, request.url));
+  }
+
+  if (user && (isDashboard || isLeitor)) {
+    const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', user.id).single();
+    const role = profile?.perfil || 'leitor';
+
+    if (isDashboard && role !== 'admin') {
+      return NextResponse.redirect(new URL('/leitor', request.url));
+    }
+    if (isLeitor && role === 'admin') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
   return supabaseResponse;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/leitor/:path*', '/login'],
 };

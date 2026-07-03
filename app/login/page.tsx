@@ -38,9 +38,16 @@ export default function LoginPage() {
         alert('Conta criada! Verifique seu email.');
         setIsRegister(false);
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push('/dashboard');
+
+        if (data.user) {
+          const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', data.user.id).single();
+          const redirectUrl = profile?.perfil === 'admin' ? '/dashboard' : '/leitor';
+          router.push(redirectUrl);
+        } else {
+          router.push('/dashboard');
+        }
         router.refresh();
       }
     } catch (err: any) {
