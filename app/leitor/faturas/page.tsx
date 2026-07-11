@@ -32,9 +32,10 @@ export default function LeitorFaturasPage() {
   const gerarFatura = async (leitura: any) => {
     if (gerando) return;
     setGerando(true);
+    setErro('');
     try {
       const { data: cfg } = await supabase.from('config').select('*').limit(1);
-      const c = cfg?.[0] || { empresa: 'Saneamento Básico', valor_m3: 8.50, taxa_fixa: 15.00, cnpj: '', contato: '' };
+      const c = cfg?.[0] || { empresa: 'Saneamento Basico', valor_m3: 8.50, taxa_fixa: 15.00, cnpj: '', contato: '' };
       const venc = new Date();
       venc.setDate(venc.getDate() + 10);
       const valorTotal = Number(leitura.consumo) * Number(c.valor_m3) + Number(c.taxa_fixa);
@@ -73,25 +74,32 @@ export default function LeitorFaturasPage() {
       }
 
       let qrCodeBase64 = '';
+      let pixErro = '';
 
-      if (!paymentId) {
-        const res = await fetch('/api/pix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cobrancaId,
-            unidadeEndereco: leitura.unidades?.endereco,
-            unidadeHidrometro: leitura.unidades?.numero_hidrometro,
-            mes: leitura.mes,
-            valorTotal,
-            vencimento: venc.toISOString().split('T')[0],
-            empresa: c.empresa,
-          }),
-        });
+      const body: any = {
+        cobrancaId,
+        unidadeEndereco: leitura.unidades?.endereco,
+        mes: leitura.mes,
+        valorTotal,
+        vencimento: venc.toISOString().split('T')[0],
+        empresa: c.empresa,
+      };
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Erro ao gerar PIX');
+      if (paymentId) {
+        body.existingPaymentId = paymentId;
+      }
 
+      const res = await fetch('/api/pix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        pixErro = data.error || 'Erro ao gerar PIX';
+      } else {
         paymentId = data.paymentId;
         pixPayload = data.pixPayload;
         qrCodeBase64 = `data:image/png;base64,${data.qrCodeBase64}`;
@@ -100,24 +108,6 @@ export default function LeitorFaturasPage() {
           .from('cobrancas')
           .update({ asaas_payment_id: paymentId, pix_payload: pixPayload })
           .eq('id', cobrancaId);
-      } else {
-        const res = await fetch('/api/pix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cobrancaId,
-            unidadeEndereco: leitura.unidades?.endereco,
-            mes: leitura.mes,
-            valorTotal,
-            vencimento: venc.toISOString().split('T')[0],
-            empresa: c.empresa,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          qrCodeBase64 = `data:image/png;base64,${data.qrCodeBase64}`;
-          pixPayload = data.pixPayload;
-        }
       }
 
       setFatura({
@@ -134,7 +124,8 @@ export default function LeitorFaturasPage() {
         codigo,
         pixPayload: pixPayload || '',
         qrCodeBase64,
-        temPIX: true,
+        temPIX: !!qrCodeBase64,
+        pixErro,
       });
     } catch (err: any) {
       alert(err.message || 'Erro ao gerar fatura.');
@@ -162,16 +153,16 @@ export default function LeitorFaturasPage() {
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Gerar Faturas</h3>
         {erro && <p style={{ color: '#DC2626', marginBottom: 12 }}>{erro}</p>}
         <table>
-          <thead><tr><th>Unidade</th><th>Mês</th><th>Consumo</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Unidade</th><th>Mes</th><th>Consumo</th><th>Acoes</th></tr></thead>
           <tbody>
             {leituras.map(l => (
               <tr key={l.id}>
                 <td>{l.unidades?.endereco} - {l.unidades?.numero_hidrometro}</td>
                 <td>{l.mes}</td>
-                <td>{l.consumo} m³</td>
+                <td>{l.consumo} m3</td>
                 <td>
                   <button onClick={() => gerarFatura(l)} disabled={gerando} style={{ padding: '4px 12px', background: gerando ? '#94A3B8' : '#3B82F6', color: '#fff', border: 'none', borderRadius: 6, cursor: gerando ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}>
-                    {gerando ? '⏳ Gerando...' : '📄 Gerar Fatura'}
+                    {gerando ? 'Gerando...' : 'Gerar Fatura'}
                   </button>
                 </td>
               </tr>
@@ -187,15 +178,15 @@ export default function LeitorFaturasPage() {
             <div style={{ textAlign: 'center', borderBottom: '2px solid #1E293B', paddingBottom: 16, marginBottom: 20 }}>
               <h2>{fatura.empresa}</h2>
               {fatura.cnpj && <p style={{ color: '#64748B', fontSize: '0.85rem' }}>CNPJ: {fatura.cnpj}</p>}
-              <p style={{ color: '#64748B' }}>FATURA DE FORNECIMENTO DE ÁGUA</p>
+              <p style={{ color: '#64748B' }}>FATURA DE FORNECIMENTO DE AGUA</p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Endereço</label><div>{fatura.unidade?.endereco}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Hidrômetro</label><div>{fatura.unidade?.numero_hidrometro}</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Endereco</label><div>{fatura.unidade?.endereco}</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Hidrometro</label><div>{fatura.unidade?.numero_hidrometro}</div></div>
               <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Bairro</label><div>{fatura.unidade?.bairro_condominio}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Referência</label><div>{fatura.mes}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Consumo</label><div>{fatura.consumo} m³</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Referencia</label><div>{fatura.mes}</div></div>
+              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Consumo</label><div>{fatura.consumo} m3</div></div>
               <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' as const }}>Vencimento</label><div>{new Date(fatura.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</div></div>
             </div>
 
@@ -205,9 +196,20 @@ export default function LeitorFaturasPage() {
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: 4 }}>Código da Fatura</div>
+              <div style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: 4 }}>Codigo da Fatura</div>
               <div style={{ fontFamily: 'monospace', background: '#F8FAFC', padding: '8px 16px', borderRadius: 4, display: 'inline-block' }}>{fatura.codigo}</div>
             </div>
+
+            {fatura.pixErro && (
+              <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                <p style={{ color: '#92400E', fontSize: '0.85rem', margin: 0 }}>
+                  Erro ao gerar PIX: {fatura.pixErro}
+                </p>
+                <p style={{ color: '#92400E', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+                  Verifique se a chave API do Asaas esta configurada corretamente.
+                </p>
+              </div>
+            )}
 
             {fatura.temPIX && fatura.qrCodeBase64 && (
               <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16, marginBottom: 16 }}>
@@ -219,7 +221,7 @@ export default function LeitorFaturasPage() {
                 </div>
                 <div style={{ marginTop: 12, textAlign: 'center' }}>
                   <button onClick={copiarPix} style={{ padding: '6px 16px', background: copiado ? '#10B981' : '#F1F5F9', color: copiado ? '#fff' : '#1E293B', border: '1px solid #E2E8F0', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
-                    {copiado ? '✓ Copiado!' : '📋 Copiar Código PIX'}
+                    {copiado ? 'Copiado!' : 'Copiar Codigo PIX'}
                   </button>
                 </div>
               </div>
@@ -230,7 +232,7 @@ export default function LeitorFaturasPage() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-              <button onClick={() => window.print()} style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>🖨️ Imprimir</button>
+              <button onClick={() => window.print()} style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>Imprimir</button>
               <button onClick={fecharFatura} style={{ padding: '0.625rem 1.5rem', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 8, cursor: 'pointer' }}>Fechar</button>
             </div>
           </div>
