@@ -11,7 +11,7 @@ const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBott
 export default function ConfigPage() {
   const { isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00, pix_tipo: '', pix_chave: '' });
+  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00, multa: 2.00, juros: 1.00 });
   const [erro, setErro] = useState('');
   const supabase = createClient();
 
@@ -33,8 +33,6 @@ export default function ConfigPage() {
             taxa_fixa: data[0].taxa_fixa,
             multa: data[0].multa,
             juros: data[0].juros,
-            pix_tipo: data[0].pix_tipo || '',
-            pix_chave: data[0].pix_chave || '',
           });
         }
       } catch {
