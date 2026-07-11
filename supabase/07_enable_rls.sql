@@ -1,6 +1,23 @@
--- 07: Habilitar RLS e criar politicas de acesso
--- Todas as tabelas permitem SELECT/INSERT/UPDATE/DELETE para usuarios autenticados
+-- 07: Habilitar RLS e criar politicas de acesso por role
+-- Admin: acesso total
+-- Leitor: leitura nas tabelas, inserção de leituras e consulta de cobrancas
 
+-- Helper function para obter o role do usuario
+CREATE OR REPLACE FUNCTION get_user_role()
+RETURNS TEXT AS $$
+  SELECT COALESCE(
+    (SELECT perfil FROM perfis WHERE id = auth.uid()),
+    'leitor'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Helper function para verificar se é admin
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN AS $$
+  SELECT get_user_role() = 'admin';
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- Habilitar RLS em todas as tabelas
 ALTER TABLE unidades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leituras ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cobrancas ENABLE ROW LEVEL SECURITY;
@@ -23,36 +40,73 @@ BEGIN
   END LOOP;
 END $$;
 
--- Unidades
-CREATE POLICY "unidades_select" ON unidades FOR SELECT USING (true);
-CREATE POLICY "unidades_insert" ON unidades FOR INSERT WITH CHECK (true);
-CREATE POLICY "unidades_update" ON unidades FOR UPDATE USING (true);
-CREATE POLICY "unidades_delete" ON unidades FOR DELETE USING (true);
+-- ==================== UNIDADES ====================
+-- Admin: tudo
+CREATE POLICY "unidades_all_admin" ON unidades
+  FOR ALL USING (is_admin());
 
--- Leituras
-CREATE POLICY "leituras_select" ON leituras FOR SELECT USING (true);
-CREATE POLICY "leituras_insert" ON leituras FOR INSERT WITH CHECK (true);
-CREATE POLICY "leituras_update" ON leituras FOR UPDATE USING (true);
-CREATE POLICY "leituras_delete" ON leituras FOR DELETE USING (true);
+-- Leitor: apenas SELECT
+CREATE POLICY "unidades_select_leitor" ON unidades
+  FOR SELECT USING (true);
 
--- Cobrancas
-CREATE POLICY "cobrancas_select" ON cobrancas FOR SELECT USING (true);
-CREATE POLICY "cobrancas_insert" ON cobrancas FOR INSERT WITH CHECK (true);
-CREATE POLICY "cobrancas_update" ON cobrancas FOR UPDATE USING (true);
-CREATE POLICY "cobrancas_delete" ON cobrancas FOR DELETE USING (true);
+-- ==================== LEITURAS ====================
+-- Admin: tudo
+CREATE POLICY "leituras_all_admin" ON leituras
+  FOR ALL USING (is_admin());
 
--- Pagamentos
-CREATE POLICY "pagamentos_select" ON pagamentos FOR SELECT USING (true);
-CREATE POLICY "pagamentos_insert" ON pagamentos FOR INSERT WITH CHECK (true);
-CREATE POLICY "pagamentos_update" ON pagamentos FOR UPDATE USING (true);
-CREATE POLICY "pagamentos_delete" ON pagamentos FOR DELETE USING (true);
+-- Leitor: SELECT + INSERT (apenas suas proprias leituras)
+CREATE POLICY "leituras_select_leitor" ON leituras
+  FOR SELECT USING (true);
 
--- Config
-CREATE POLICY "config_select" ON config FOR SELECT USING (true);
-CREATE POLICY "config_insert" ON config FOR INSERT WITH CHECK (true);
-CREATE POLICY "config_update" ON config FOR UPDATE USING (true);
+CREATE POLICY "leituras_insert_leitor" ON leituras
+  FOR INSERT WITH CHECK (usuario_id = auth.uid());
 
--- Perfis
-CREATE POLICY "perfis_select" ON perfis FOR SELECT USING (true);
-CREATE POLICY "perfis_insert" ON perfis FOR INSERT WITH CHECK (true);
-CREATE POLICY "perfis_update" ON perfis FOR UPDATE USING (true);
+-- Leitor: UPDATE apenas suas leituras
+CREATE POLICY "leituras_update_leitor" ON leituras
+  FOR UPDATE USING (usuario_id = auth.uid());
+
+-- ==================== COBRANCAS ====================
+-- Admin: tudo
+CREATE POLICY "cobrancas_all_admin" ON cobrancas
+  FOR ALL USING (is_admin());
+
+-- Leitor: SELECT + INSERT (apenas suas proprias cobrancas)
+CREATE POLICY "cobrancas_select_leitor" ON cobrancas
+  FOR SELECT USING (true);
+
+CREATE POLICY "cobrancas_insert_leitor" ON cobrancas
+  FOR INSERT WITH CHECK (usuario_id = auth.uid());
+
+-- Leitor: UPDATE (apenas status, via webhook - so admin)
+-- Nao precisa de policy de update para leitor
+
+-- ==================== PAGAMENTOS ====================
+-- Admin: tudo
+CREATE POLICY "pagamentos_all_admin" ON pagamentos
+  FOR ALL USING (is_admin());
+
+-- Leitor: apenas SELECT
+CREATE POLICY "pagamentos_select_leitor" ON pagamentos
+  FOR SELECT USING (true);
+
+-- ==================== CONFIG ====================
+-- Admin: tudo
+CREATE POLICY "config_all_admin" ON config
+  FOR ALL USING (is_admin());
+
+-- Leitor: apenas SELECT
+CREATE POLICY "config_select_leitor" ON config
+  FOR SELECT USING (true);
+
+-- ==================== PERFIS ====================
+-- Admin: tudo
+CREATE POLICY "perfis_all_admin" ON perfis
+  FOR ALL USING (is_admin());
+
+-- Leitor: apenas ver proprio perfil
+CREATE POLICY "perfis_select_own" ON perfis
+  FOR SELECT USING (id = auth.uid());
+
+-- Leitor: update proprio perfil (nome, contato, senha)
+CREATE POLICY "perfis_update_own" ON perfis
+  FOR UPDATE USING (id = auth.uid());

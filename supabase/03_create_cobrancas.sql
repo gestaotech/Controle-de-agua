@@ -1,5 +1,6 @@
 -- 03: Tabela de cobrancas
 -- Vincula leitura a um valor, gera boleto/fatura
+-- Inclui colunas do Asaas para integracao PIX
 
 DO $$
 BEGIN
@@ -15,6 +16,8 @@ BEGIN
       vencimento DATE NOT NULL,
       status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente', 'pago', 'atrasado')),
       usuario_id UUID REFERENCES auth.users(id),
+      asaas_payment_id TEXT,
+      pix_payload TEXT,
       criado_em TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(unidade_id, mes)
     );
@@ -24,5 +27,11 @@ BEGIN
     END IF;
     ALTER TABLE cobrancas DROP CONSTRAINT IF EXISTS cobrancas_unidade_id_mes_key;
     ALTER TABLE cobrancas ADD CONSTRAINT cobrancas_unidade_id_mes_key UNIQUE (unidade_id, mes);
+    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'cobrancas' AND column_name = 'asaas_payment_id') THEN
+      ALTER TABLE cobrancas ADD COLUMN asaas_payment_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'cobrancas' AND column_name = 'pix_payload') THEN
+      ALTER TABLE cobrancas ADD COLUMN pix_payload TEXT;
+    END IF;
   END IF;
 END $$;

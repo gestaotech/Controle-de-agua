@@ -1,5 +1,5 @@
 -- 05: Tabela de configuracao do sistema
--- Empresa, CNPJ, contato, valores de tarifa
+-- Empresa, CNPJ, contato, valores de tarifa, PIX
 
 DO $$
 BEGIN
@@ -13,6 +13,8 @@ BEGIN
       taxa_fixa NUMERIC(10,2) NOT NULL DEFAULT 15.00,
       multa NUMERIC(10,2) NOT NULL DEFAULT 2.00,
       juros NUMERIC(10,2) NOT NULL DEFAULT 1.00,
+      pix_tipo TEXT DEFAULT '',
+      pix_chave TEXT DEFAULT '',
       criado_em TIMESTAMPTZ DEFAULT NOW()
     );
   ELSE
@@ -21,6 +23,12 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'config' AND column_name = 'contato') THEN
       ALTER TABLE config ADD COLUMN contato TEXT DEFAULT '';
+    END IF;
+    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'config' AND column_name = 'pix_tipo') THEN
+      ALTER TABLE config ADD COLUMN pix_tipo TEXT DEFAULT '';
+    END IF;
+    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'config' AND column_name = 'pix_chave') THEN
+      ALTER TABLE config ADD COLUMN pix_chave TEXT DEFAULT '';
     END IF;
   END IF;
 END $$;
