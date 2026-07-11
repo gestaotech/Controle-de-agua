@@ -96,22 +96,28 @@ export default function ConfigPage() {
         </div>
 
         <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>
-          <h4 style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: 12 }}>Pagamento PIX</h4>
-        </div>
-        <div>
-          <label style={lbl}>Tipo da Chave PIX</label>
-          <select style={inp} value={config.pix_tipo} onChange={e => setConfig({ ...config, pix_tipo: e.target.value })}>
-            <option value="">Não configurado</option>
-            <option value="cpf">CPF</option>
-            <option value="cnpj">CNPJ</option>
-            <option value="email">E-mail</option>
-            <option value="telefone">Telefone</option>
-            <option value="aleatoria">Chave Aleatória</option>
-          </select>
-        </div>
-        <div>
-          <label style={lbl}>Chave PIX</label>
-          <input style={inp} value={config.pix_chave} onChange={e => setConfig({ ...config, pix_chave: e.target.value })} placeholder={config.pix_tipo === 'cpf' ? '000.000.000-00' : config.pix_tipo === 'email' ? 'email@exemplo.com' : 'Sua chave PIX'} />
+          <h4 style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: 12 }}>Pagamento PIX (Asaas)</h4>
+          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+            <p style={{ color: '#166534', fontSize: '0.85rem', margin: 0 }}>
+              O pagamento PIX é processado automaticamente via Asaas. Para configurar:
+            </p>
+            <ol style={{ color: '#166534', fontSize: '0.85rem', margin: '8px 0 0 20px', padding: 0 }}>
+              <li>Crie uma conta em <strong>asaas.com</strong></li>
+              <li>Gere sua API Key em Configurações {'>'} Integrações {'>'} API</li>
+              <li>Adicione a API Key no arquivo <code>.env.local</code></li>
+              <li>Configure o webhook no painel do Asaas</li>
+            </ol>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 6 }}>
+              <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Ambiente</span>
+              <div style={{ fontSize: '0.9rem' }}>{process.env.ASAAS_ENVIRONMENT === 'production' ? 'Produção' : 'Sandbox (teste)'}</div>
+            </div>
+            <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 6 }}>
+              <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Status</span>
+              <div style={{ fontSize: '0.9rem', color: '#16A34A' }}>Ativo</div>
+            </div>
+          </div>
         </div>
 
         <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end' }}>
