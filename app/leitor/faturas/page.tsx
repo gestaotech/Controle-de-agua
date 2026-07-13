@@ -41,13 +41,14 @@ export default function LeitorFaturasPage() {
       const valorTotal = Number(leitura.consumo) * Number(c.valor_m3) + Number(c.taxa_fixa);
       const codigo = 'AG' + Date.now().toString().slice(-8);
 
-      const { data: existente } = await supabase
+      const { data: existentes } = await supabase
         .from('cobrancas')
         .select('id, asaas_payment_id, pix_payload')
         .eq('unidade_id', leitura.unidade_id)
         .eq('mes', leitura.mes)
-        .single();
+        .limit(1);
 
+      const existente = existentes?.[0];
       let cobrancaId = existente?.id;
       let paymentId = existente?.asaas_payment_id;
       let pixPayload = existente?.pix_payload;
@@ -69,7 +70,19 @@ export default function LeitorFaturasPage() {
           .select('id')
           .single();
 
-        if (insertErr) throw insertErr;
+        if (insertErr) {
+          if (insertErr.code === '23505') {
+            const { data: exist } = await supabase
+              .from('cobrancas')
+              .select('id')
+              .eq('unidade_id', leitura.unidade_id)
+              .eq('mes', leitura.mes)
+              .limit(1);
+            if (exist?.[0]) { cobrancaId = exist[0].id; }
+          } else {
+            throw insertErr;
+          }
+        }
         cobrancaId = nova.id;
       }
 
