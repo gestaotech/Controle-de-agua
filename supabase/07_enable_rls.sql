@@ -57,5 +57,6 @@ CREATE POLICY "config_select_leitor" ON config FOR SELECT USING (true);
 
 -- PERFIS
 CREATE POLICY "perfis_all_admin" ON perfis FOR ALL USING (is_admin());
+CREATE POLICY "perfis_insert_own" ON perfis FOR INSERT WITH CHECK (id = auth.uid());
 CREATE POLICY "perfis_select_own" ON perfis FOR SELECT USING (id = auth.uid());
 CREATE POLICY "perfis_update_own" ON perfis FOR UPDATE USING (id = auth.uid()) WITH CHECK (perfil = (SELECT perfil FROM perfis WHERE id = auth.uid()));

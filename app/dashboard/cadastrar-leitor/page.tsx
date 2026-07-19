@@ -70,14 +70,24 @@ export default function CadastrarLeitorPage() {
     setLoading(true);
     try {
       const email = form.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '') + '@controle-agua.app';
-      const { data, error } = await supabase.auth.signUp({
-        email, password: form.senha, options: { data: { nome: form.nome } },
-      });
-      if (error) throw error;
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/signup`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          },
+          body: JSON.stringify({ email, password: form.senha, data: { nome: form.nome } }),
+        }
+      );
+      const signupBody = await res.json();
+      if (!res.ok) throw new Error(signupBody.msg || signupBody.error || `Erro ${res.status}`);
 
-      if (data.user) {
+      const userId = signupBody.id || signupBody.user?.id;
+      if (userId) {
         const { error: profileError } = await supabase.from('perfis').insert({
-          id: data.user.id, nome: form.nome, perfil: 'leitor', ativo: true,
+          id: userId, nome: form.nome, perfil: 'leitor', ativo: true,
           bairro_id: form.bairro_id, contato: form.contato,
         });
         if (profileError) throw profileError;
