@@ -4,24 +4,21 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { useRouter } from 'next/navigation';
+import { inp, lbl } from '@/lib/styles';
 
-const inp = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' };
-const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' as const };
+interface Bairro { id: string; nome: string; }
 
 interface Leitor {
-  id: string;
-  nome: string;
-  perfil: string;
-  ativo: boolean;
-  bairro_condominio: string;
-  contato: string;
-  criado_em: string;
+  id: string; nome: string; perfil: string; ativo: boolean;
+  bairro_id: string | null; bairros: { nome: string } | null;
+  contato: string; criado_em: string;
 }
 
 export default function CadastrarLeitorPage() {
   const { isAdmin, loading: authLoading, user } = useAuth();
   const router = useRouter();
-  const [form, setForm] = useState({ nome: '', contato: '', bairro_condominio: '', senha: '', confirmarSenha: '' });
+  const [form, setForm] = useState({ nome: '', contato: '', bairro_id: '', senha: '', confirmarSenha: '' });
+  const [bairros, setBairros] = useState<Bairro[]>([]);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
@@ -35,137 +32,93 @@ export default function CadastrarLeitorPage() {
   const [loadingModal, setLoadingModal] = useState(false);
   const supabase = createClient();
 
-  if (!authLoading && !isAdmin) {
-    router.push('/dashboard');
-    return null;
-  }
+  if (!authLoading && !isAdmin) { router.push('/dashboard'); return null; }
 
   const loadLeitores = async () => {
     try {
-      const { data } = await supabase.from('perfis').select('*').eq('perfil', 'leitor').order('nome');
+      const { data } = await supabase
+        .from('perfis').select('*, bairros(nome)').eq('perfil', 'leitor').order('nome');
       setLeitores(data || []);
     } catch {}
   };
 
-  useEffect(() => { if (!authLoading && isAdmin) loadLeitores(); }, [authLoading, isAdmin]);
+  const loadBairros = async () => {
+    const { data } = await supabase.from('bairros').select('id, nome').eq('ativo', true).order('nome');
+    setBairros(data || []);
+  };
+
+  useEffect(() => {
+    if (!authLoading && isAdmin) { loadLeitores(); loadBairros(); }
+  }, [authLoading, isAdmin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErro('');
-    setSucesso('');
-    setLinkGerado('');
-    setSenhaGerada('');
+    setErro(''); setSucesso(''); setLinkGerado(''); setSenhaGerada('');
 
-    if (!form.nome || !form.senha || !form.bairro_condominio) {
-      return alert('Preencha nome, bairro/condomínio e senha');
-    }
-    if (form.senha !== form.confirmarSenha) {
-      return alert('As senhas não conferem');
-    }
-    if (form.senha.length < 6) {
-      return alert('A senha deve ter pelo menos 6 caracteres');
-    }
+    if (!form.nome || !form.senha || !form.bairro_id) return alert('Preencha nome, bairro e senha');
+    if (form.senha !== form.confirmarSenha) return alert('As senhas não conferem');
+    if (form.senha.length < 6) return alert('A senha deve ter pelo menos 6 caracteres');
 
     setLoading(true);
     try {
       const email = `${form.nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local`;
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password: form.senha,
-        options: { data: { nome: form.nome }, emailRedirectTo: undefined },
+        email, password: form.senha, options: { data: { nome: form.nome } },
       });
       if (error) throw error;
 
       if (data.user) {
         const { error: profileError } = await supabase.from('perfis').insert({
-          id: data.user.id,
-          nome: form.nome,
-          perfil: 'leitor',
-          ativo: true,
-          bairro_condominio: form.bairro_condominio,
-          contato: form.contato,
+          id: data.user.id, nome: form.nome, perfil: 'leitor', ativo: true,
+          bairro_id: form.bairro_id, contato: form.contato,
         });
         if (profileError) throw profileError;
       }
 
-      const link = `${window.location.origin}/login`;
-      setLinkGerado(link);
+      setLinkGerado(`${window.location.origin}/login`);
       setSenhaGerada(form.senha);
       setSucesso(`Leitor "${form.nome}" cadastrado com sucesso!`);
-      setForm({ nome: '', contato: '', bairro_condominio: '', senha: '', confirmarSenha: '' });
+      setForm({ nome: '', contato: '', bairro_id: '', senha: '', confirmarSenha: '' });
       loadLeitores();
     } catch (err: any) {
       setErro(err.message || 'Erro ao cadastrar leitor');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const abrirDetalhes = (leitor: Leitor) => {
-    setLeitorSelecionado(leitor);
-    setAutenticado(false);
-    setSenhaModal('');
-    setErroSenha('');
-  };
-
-  const fecharModal = () => {
-    setLeitorSelecionado(null);
-    setAutenticado(false);
-    setSenhaModal('');
-    setErroSenha('');
-  };
+  const abrirDetalhes = (leitor: Leitor) => { setLeitorSelecionado(leitor); setAutenticado(false); setSenhaModal(''); setErroSenha(''); };
+  const fecharModal = () => { setLeitorSelecionado(null); setAutenticado(false); setSenhaModal(''); setErroSenha(''); };
 
   const verificarSenha = async () => {
     if (!senhaModal) return;
-    setLoadingModal(true);
-    setErroSenha('');
+    setLoadingModal(true); setErroSenha('');
     try {
       const email = user?.email;
       if (!email) { setErroSenha('Erro ao verificar senha.'); setLoadingModal(false); return; }
       const { error } = await supabase.auth.signInWithPassword({ email, password: senhaModal });
-      if (error) {
-        setErroSenha('Senha incorreta.');
-      } else {
-        setAutenticado(true);
-      }
-    } catch {
-      setErroSenha('Erro ao verificar senha.');
-    } finally {
-      setLoadingModal(false);
-    }
+      if (error) setErroSenha('Senha incorreta.');
+      else setAutenticado(true);
+    } catch { setErroSenha('Erro ao verificar senha.'); } finally { setLoadingModal(false); }
   };
 
   const toggleAtivo = async (id: string, ativo: boolean) => {
-    try {
-      await supabase.from('perfis').update({ ativo }).eq('id', id);
-      loadLeitores();
-    } catch {
-      alert('Erro ao alterar status.');
-    }
+    try { await supabase.from('perfis').update({ ativo }).eq('id', id); loadLeitores(); } catch { alert('Erro ao alterar status.'); }
   };
 
   if (authLoading) return <p>Carregando...</p>;
 
   return (
     <div>
-      {/* Formulario de cadastro */}
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', maxWidth: 700 }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Cadastrar Novo Leitor</h3>
-
         {erro && <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem' }}>{erro}</div>}
         {sucesso && <div style={{ background: '#D1FAE5', color: '#065F46', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem' }}>{sucesso}</div>}
-        {linkGerado && (
-          <div style={{ background: '#EFF6FF', color: '#1E40AF', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem', wordBreak: 'break-all' }}>
-            <strong>Link de acesso:</strong> {linkGerado}
-          </div>
-        )}
+        {linkGerado && <div style={{ background: '#EFF6FF', color: '#1E40AF', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem', wordBreak: 'break-all' }}><strong>Link de acesso:</strong> {linkGerado}</div>}
         {senhaGerada && (
           <div style={{ background: '#FEF3C7', color: '#92400E', padding: '0.75rem', borderRadius: 8, marginBottom: 16, fontSize: '0.9rem', border: '1px solid #F59E0B' }}>
             <strong>Senha do leitor:</strong> <code style={{ background: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: 1 }}>{senhaGerada}</code>
             <p style={{ marginTop: 6, fontSize: '0.8rem', opacity: 0.8 }}>Anote ou copie esta senha. Ela não poderá ser visualizada novamente.</p>
           </div>
         )}
-
         <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={lbl}>Nome Completo *</label>
@@ -177,7 +130,10 @@ export default function CadastrarLeitorPage() {
           </div>
           <div>
             <label style={lbl}>Bairro/Condomínio de Atuação *</label>
-            <input style={inp} value={form.bairro_condominio} onChange={e => setForm({ ...form, bairro_condominio: e.target.value })} required placeholder="Ex: Centro, Jardim Europa" />
+            <select style={inp} value={form.bairro_id} onChange={e => setForm({ ...form, bairro_id: e.target.value })} required>
+              <option value="">Selecione</option>
+              {bairros.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+            </select>
           </div>
           <div>
             <label style={lbl}>Senha *</label>
@@ -195,25 +151,20 @@ export default function CadastrarLeitorPage() {
         </form>
       </div>
 
-      {/* Lista de leitores cadastrados */}
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Leitores Cadastrados</h3>
         <table>
-          <thead>
-            <tr><th>Nome</th><th>Contato</th><th>Bairro</th><th>Status</th><th>Ações</th></tr>
-          </thead>
+          <thead><tr><th>Nome</th><th>Contato</th><th>Bairro</th><th>Status</th><th>Ações</th></tr></thead>
           <tbody>
             {leitores.map(l => (
               <tr key={l.id}>
                 <td>{l.nome}</td>
                 <td>{l.contato || '-'}</td>
-                <td>{l.bairro_condominio || '-'}</td>
+                <td>{l.bairros?.nome || '-'}</td>
                 <td><span className={`badge badge-${l.ativo ? 'success' : 'danger'}`}>{l.ativo ? 'Ativo' : 'Inativo'}</span></td>
                 <td>
                   <button onClick={() => abrirDetalhes(l)} style={{ background: 'none', border: 'none', cursor: 'pointer' }} title="Ver detalhes">👁️</button>
-                  <button onClick={() => toggleAtivo(l.id, !l.ativo)} style={{ background: 'none', border: 'none', cursor: 'pointer' }} title={l.ativo ? 'Desativar' : 'Ativar'}>
-                    {l.ativo ? '⏸️' : '▶️'}
-                  </button>
+                  <button onClick={() => toggleAtivo(l.id, !l.ativo)} style={{ background: 'none', border: 'none', cursor: 'pointer' }} title={l.ativo ? 'Desativar' : 'Ativar'}>{l.ativo ? '⏸️' : '▶️'}</button>
                 </td>
               </tr>
             ))}
@@ -222,7 +173,6 @@ export default function CadastrarLeitorPage() {
         </table>
       </div>
 
-      {/* Modal de autenticacao + detalhes */}
       {leitorSelecionado && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) fecharModal(); }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 450, width: '100%' }}>
@@ -237,9 +187,7 @@ export default function CadastrarLeitorPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={fecharModal} style={{ padding: '0.625rem 1.25rem', background: '#F1F5F9', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Cancelar</button>
-                  <button onClick={verificarSenha} disabled={loadingModal} style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', opacity: loadingModal ? 0.7 : 1 }}>
-                    {loadingModal ? 'Verificando...' : 'Confirmar'}
-                  </button>
+                  <button onClick={verificarSenha} disabled={loadingModal} style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', opacity: loadingModal ? 0.7 : 1 }}>{loadingModal ? 'Verificando...' : 'Confirmar'}</button>
                 </div>
               </>
             ) : (
@@ -256,7 +204,7 @@ export default function CadastrarLeitorPage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E2E8F0' }}>
                     <span style={{ color: '#64748B', fontSize: '0.85rem' }}>Bairro/Condomínio</span>
-                    <span style={{ fontWeight: 500 }}>{leitorSelecionado.bairro_condominio || '-'}</span>
+                    <span style={{ fontWeight: 500 }}>{leitorSelecionado.bairros?.nome || '-'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E2E8F0' }}>
                     <span style={{ color: '#64748B', fontSize: '0.85rem' }}>Status</span>
@@ -265,13 +213,6 @@ export default function CadastrarLeitorPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #E2E8F0' }}>
                     <span style={{ color: '#64748B', fontSize: '0.85rem' }}>Cadastrado em</span>
                     <span style={{ fontWeight: 500 }}>{new Date(leitorSelecionado.criado_em).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                    <span style={{ color: '#64748B', fontSize: '0.85rem' }}>Email de login</span>
-                    <span style={{ fontWeight: 500, fontSize: '0.85rem' }}>{leitorSelecionado.nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local</span>
-                  </div>
-                  <div style={{ background: '#FEF3C7', color: '#92400E', padding: '0.75rem', borderRadius: 8, fontSize: '0.85rem', marginTop: 4 }}>
-                    A senha é definida no momento do cadastro e não pode ser visualizada novamente por segurança. Se esqueceu, cadastre o leitor novamente.
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>

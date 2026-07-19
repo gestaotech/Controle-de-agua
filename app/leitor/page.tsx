@@ -16,25 +16,25 @@ export default function LeitorDashboardPage() {
     (async () => {
       setErro('');
       try {
-        const bairro = profile.bairro_condominio;
-
-        const [u, l, p] = await Promise.all([
-          supabase.from('unidades').select('*', { count: 'exact', head: true }).eq('bairro_condominio', bairro).eq('status', 'ativo'),
+        const [u, l, unids] = await Promise.all([
+          supabase.from('unidades').select('*', { count: 'exact', head: true }).eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
           supabase.from('leituras').select('*', { count: 'exact', head: true }).eq('usuario_id', user.id),
-          supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
+          supabase.from('unidades').select('id').eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
         ]);
 
-        setStats({ unidades: u.count || 0, leituras: l.count || 0, pendentes: p.count || 0 });
+        const ids = (unids.data || []).map(u => u.id);
+        let pendentes = 0;
+        if (ids.length > 0) {
+          const { count } = await supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente').in('unidade_id', ids);
+          pendentes = count || 0;
+        }
+        setStats({ unidades: u.count || 0, leituras: l.count || 0, pendentes });
 
         const { data: leituras } = await supabase
-          .from('leituras').select('*, unidades(endereco, numero_hidrometro, bairro_condominio)')
-          .eq('usuario_id', user.id)
-          .order('criado_em', { ascending: false })
-          .limit(5);
+          .from('leituras').select('*, unidades(endereco, numero_hidrometro, bairros(nome))')
+          .eq('usuario_id', user.id).order('criado_em', { ascending: false }).limit(5);
         setUltimasLeituras(leituras || []);
-      } catch {
-        setErro('Erro ao carregar dados.');
-      }
+      } catch { setErro('Erro ao carregar dados.'); }
     })();
   }, [user, profile]);
 
@@ -47,9 +47,9 @@ export default function LeitorDashboardPage() {
   return (
     <div>
       {erro && <p style={{ color: '#DC2626', marginBottom: 16 }}>{erro}</p>}
-      {profile?.bairro_condominio && (
+      {profile?.bairro_nome && (
         <p style={{ color: '#64748B', marginBottom: 16, fontSize: '0.9rem' }}>
-          Área de atuação: <strong>{profile.bairro_condominio}</strong>
+          Área de atuação: <strong>{profile.bairro_nome}</strong>
         </p>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 32 }}>
@@ -74,7 +74,7 @@ export default function LeitorDashboardPage() {
             ) : ultimasLeituras.map(l => (
               <tr key={l.id}>
                 <td>{l.unidades?.endereco} - {l.unidades?.numero_hidrometro}</td>
-                <td>{l.unidades?.bairro_condominio}</td>
+                <td>{l.unidades?.bairros?.nome}</td>
                 <td>{l.mes}</td>
                 <td><strong>{l.consumo} m³</strong></td>
                 <td>{new Date(l.criado_em).toLocaleDateString('pt-BR')}</td>

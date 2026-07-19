@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
-
-const inp = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' };
-const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' as const };
+import { inp, lbl } from '@/lib/styles';
 
 export default function LeitorPerfilPage() {
   const { user, profile } = useAuth();
@@ -63,7 +61,7 @@ export default function LeitorPerfilPage() {
         <div style={{ display: 'grid', gap: 12 }}>
           <div><label style={lbl}>Nome</label><input style={inp} value={nome} onChange={e => setNome(e.target.value)} /></div>
           <div><label style={lbl}>Contato</label><input style={inp} value={contato} onChange={e => setContato(e.target.value)} placeholder="(00) 00000-0000" /></div>
-          <div><label style={lbl}>Bairro/Condomínio</label><input style={{ ...inp, background: '#F8FAFC' }} value={profile?.bairro_condominio || ''} readOnly /></div>
+          <div><label style={lbl}>Bairro</label><input style={{ ...inp, background: '#F8FAFC' }} value={profile?.bairro_nome || ''} readOnly /></div>
           <div><label style={lbl}>Perfil</label><input style={{ ...inp, background: '#F8FAFC' }} value="Leitor" readOnly /></div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button onClick={salvarDados} style={{ padding: '0.625rem 1.5rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer' }}>Salvar</button>

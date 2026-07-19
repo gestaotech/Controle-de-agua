@@ -46,7 +46,6 @@ export default function LoginPage() {
             nome,
             perfil: 'admin',
             ativo: true,
-            bairro_condominio: '',
             contato: '',
           });
           if (profileError) throw profileError;

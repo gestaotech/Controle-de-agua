@@ -93,12 +93,6 @@ export async function getPayment(paymentId: string): Promise<AsaasPayment> {
   return asaasFetch(`/payments/${paymentId}`);
 }
 
-export function verifyWebhookSignature(access_token: string): boolean {
-  const expected = process.env.ASAAS_WEBHOOK_TOKEN || '';
-  if (!expected) return true;
-  return access_token === expected;
-}
-
 export function formatCurrency(value: number): string {
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
 }

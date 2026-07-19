@@ -85,7 +85,7 @@ function LeitorShell({ children }: { children: ReactNode }) {
             </div>
             <div>
               <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{profile?.nome}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{profile?.bairro_condominio || 'Leitor'}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{profile?.bairro_nome || 'Leitor'}</div>
             </div>
           </div>
           <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>🚪</button>

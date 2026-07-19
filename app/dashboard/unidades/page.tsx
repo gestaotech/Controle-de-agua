@@ -2,24 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { inp, lbl } from '@/lib/styles';
 
-interface Unidade {
-  id: string;
-  endereco: string;
-  numero_hidrometro: string;
-  bairro_condominio: string;
-  leitura_inicial: number;
-  data_leitura_inicial: string;
-  status: string;
+interface Bairro {
+  id: string; nome: string;
 }
 
-const inp = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' };
-const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' as const };
+interface Unidade {
+  id: string; endereco: string; numero_hidrometro: string;
+  bairro_id: string; leitura_inicial: number; data_leitura_inicial: string;
+  status: string; bairros: { nome: string } | null;
+}
 
 export default function UnidadesPage() {
   const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [bairros, setBairros] = useState<Bairro[]>([]);
   const [form, setForm] = useState({
-    endereco: '', numero_hidrometro: '', bairro_condominio: '',
+    endereco: '', numero_hidrometro: '', bairro_id: '',
     leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo',
   });
   const [editId, setEditId] = useState('');
@@ -30,10 +29,11 @@ export default function UnidadesPage() {
   const load = async () => {
     setErro('');
     try {
-      let q = supabase.from('unidades').select('*');
-      if (busca) q = q.or(`endereco.ilike.%${busca}%,numero_hidrometro.ilike.%${busca}%,bairro_condominio.ilike.%${busca}%`);
-      const { data } = await q.order('endereco');
-      setUnidades(data || []);
+      let q = supabase.from('unidades').select('*, bairros(nome)');
+      if (busca) q = q.or(`endereco.ilike.%${busca}%,numero_hidrometro.ilike.%${busca}%`);
+      const [u, b] = await Promise.all([q.order('endereco'), supabase.from('bairros').select('id, nome').eq('ativo', true).order('nome')]);
+      setUnidades(u.data || []);
+      setBairros(b.data || []);
     } catch {
       setErro('Erro ao carregar unidades.');
     }
@@ -43,56 +43,45 @@ export default function UnidadesPage() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.endereco || !form.numero_hidrometro || !form.bairro_condominio) {
+    if (!form.endereco || !form.numero_hidrometro || !form.bairro_id) {
       return alert('Preencha endereço, hidrômetro e bairro/condomínio');
     }
     try {
       if (editId) {
         await supabase.from('unidades').update({
-          endereco: form.endereco,
-          numero_hidrometro: form.numero_hidrometro,
-          bairro_condominio: form.bairro_condominio,
-          status: form.status,
+          endereco: form.endereco, numero_hidrometro: form.numero_hidrometro,
+          bairro_id: form.bairro_id, status: form.status,
         }).eq('id', editId);
       } else {
         await supabase.from('unidades').insert({
-          endereco: form.endereco,
-          numero_hidrometro: form.numero_hidrometro,
-          bairro_condominio: form.bairro_condominio,
-          leitura_inicial: form.leitura_inicial,
-          data_leitura_inicial: form.data_leitura_inicial,
-          status: form.status,
+          endereco: form.endereco, numero_hidrometro: form.numero_hidrometro,
+          bairro_id: form.bairro_id, leitura_inicial: form.leitura_inicial,
+          data_leitura_inicial: form.data_leitura_inicial, status: form.status,
         });
       }
       resetForm();
       load();
     } catch {
-      alert('Erro ao salvar unidade. Tente novamente.');
+      alert('Erro ao salvar unidade.');
     }
   };
 
   const resetForm = () => {
-    setForm({ endereco: '', numero_hidrometro: '', bairro_condominio: '', leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo' });
+    setForm({ endereco: '', numero_hidrometro: '', bairro_id: '', leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo' });
     setEditId('');
   };
 
   const edit = (u: Unidade) => {
     setForm({
-      endereco: u.endereco, numero_hidrometro: u.numero_hidrometro,
-      bairro_condominio: u.bairro_condominio, leitura_inicial: Number(u.leitura_inicial),
-      data_leitura_inicial: u.data_leitura_inicial, status: u.status,
+      endereco: u.endereco, numero_hidrometro: u.numero_hidrometro, bairro_id: u.bairro_id,
+      leitura_inicial: Number(u.leitura_inicial), data_leitura_inicial: u.data_leitura_inicial, status: u.status,
     });
     setEditId(u.id);
   };
 
   const del = async (id: string) => {
     if (!confirm('Excluir esta unidade?')) return;
-    try {
-      await supabase.from('unidades').delete().eq('id', id);
-      load();
-    } catch {
-      alert('Erro ao excluir unidade.');
-    }
+    try { await supabase.from('unidades').delete().eq('id', id); load(); } catch { alert('Erro ao excluir unidade.'); }
   };
 
   return (
@@ -111,7 +100,10 @@ export default function UnidadesPage() {
           </div>
           <div>
             <label style={lbl}>Bairro/Condomínio *</label>
-            <input style={inp} value={form.bairro_condominio} onChange={e => setForm({ ...form, bairro_condominio: e.target.value })} required />
+            <select style={inp} value={form.bairro_id} onChange={e => setForm({ ...form, bairro_id: e.target.value })} required>
+              <option value="">Selecione</option>
+              {bairros.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+            </select>
           </div>
           {!editId && (
             <>
@@ -141,7 +133,7 @@ export default function UnidadesPage() {
 
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <div style={{ marginBottom: 16 }}>
-          <input placeholder="Buscar endereço, hidrômetro ou bairro..." value={busca} onChange={e => setBusca(e.target.value)} style={{ ...inp, maxWidth: 400 }} />
+          <input placeholder="Buscar endereço ou hidrômetro..." value={busca} onChange={e => setBusca(e.target.value)} style={{ ...inp, maxWidth: 400 }} />
         </div>
         <table>
           <thead><tr><th>Endereço</th><th>Hidrômetro</th><th>Bairro</th><th>Leitura Inicial</th><th>Status</th><th>Ações</th></tr></thead>
@@ -150,7 +142,7 @@ export default function UnidadesPage() {
               <tr key={u.id}>
                 <td>{u.endereco}</td>
                 <td>{u.numero_hidrometro}</td>
-                <td>{u.bairro_condominio}</td>
+                <td>{u.bairros?.nome || '-'}</td>
                 <td>{Number(u.leitura_inicial).toFixed(2)} m³</td>
                 <td><span className={`badge badge-${u.status === 'ativo' ? 'success' : 'danger'}`}>{u.status}</span></td>
                 <td>

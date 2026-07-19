@@ -10,7 +10,8 @@ interface Profile {
   nome: string;
   perfil: 'admin' | 'leitor';
   ativo: boolean;
-  bairro_condominio: string;
+  bairro_id: string | null;
+  bairro_nome: string;
   contato: string;
 }
 
@@ -44,8 +45,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       if (user) {
-        const { data } = await supabase.from('perfis').select('*').eq('id', user.id).single();
-        setProfile(data);
+        const { data } = await supabase
+          .from('perfis')
+          .select('*, bairros!left(nome)')
+          .eq('id', user.id)
+          .single();
+        if (data) {
+          setProfile({
+            id: data.id,
+            nome: data.nome,
+            perfil: data.perfil,
+            ativo: data.ativo,
+            bairro_id: data.bairro_id,
+            bairro_nome: data.bairros?.nome || '',
+            contato: data.contato,
+          });
+        }
       }
       setLoading(false);
     })();

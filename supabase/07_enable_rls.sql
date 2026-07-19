@@ -1,4 +1,3 @@
--- Helper functions
 CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS TEXT AS $$
   SELECT COALESCE(
@@ -12,16 +11,13 @@ RETURNS BOOLEAN AS $$
   SELECT get_user_role() = 'admin';
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- Enable RLS
+ALTER TABLE bairros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE unidades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leituras ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cobrancas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pagamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE perfis ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bairros ENABLE ROW LEVEL SECURITY;
 
--- Drop old policies
 DO $$
 DECLARE
   pol RECORD;
@@ -30,11 +26,15 @@ BEGIN
     SELECT policyname, tablename
     FROM pg_policies
     WHERE schemaname = 'public'
-      AND tablename IN ('unidades', 'leituras', 'cobrancas', 'pagamentos', 'config', 'perfis', 'bairros')
+      AND tablename IN ('bairros', 'unidades', 'leituras', 'cobrancas', 'config', 'perfis')
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I', pol.policyname, pol.tablename);
   END LOOP;
 END $$;
+
+-- BAIRROS
+CREATE POLICY "bairros_all_admin" ON bairros FOR ALL USING (is_admin());
+CREATE POLICY "bairros_select_all" ON bairros FOR SELECT USING (true);
 
 -- UNIDADES
 CREATE POLICY "unidades_all_admin" ON unidades FOR ALL USING (is_admin());
@@ -51,10 +51,6 @@ CREATE POLICY "cobrancas_all_admin" ON cobrancas FOR ALL USING (is_admin());
 CREATE POLICY "cobrancas_select_leitor" ON cobrancas FOR SELECT USING (true);
 CREATE POLICY "cobrancas_insert_leitor" ON cobrancas FOR INSERT WITH CHECK (usuario_id = auth.uid());
 
--- PAGAMENTOS
-CREATE POLICY "pagamentos_all_admin" ON pagamentos FOR ALL USING (is_admin());
-CREATE POLICY "pagamentos_select_leitor" ON pagamentos FOR SELECT USING (true);
-
 -- CONFIG
 CREATE POLICY "config_all_admin" ON config FOR ALL USING (is_admin());
 CREATE POLICY "config_select_leitor" ON config FOR SELECT USING (true);
@@ -62,8 +58,4 @@ CREATE POLICY "config_select_leitor" ON config FOR SELECT USING (true);
 -- PERFIS
 CREATE POLICY "perfis_all_admin" ON perfis FOR ALL USING (is_admin());
 CREATE POLICY "perfis_select_own" ON perfis FOR SELECT USING (id = auth.uid());
-CREATE POLICY "perfis_update_own" ON perfis FOR UPDATE USING (id = auth.uid());
-
--- BAIRROS
-CREATE POLICY "bairros_all_admin" ON bairros FOR ALL USING (is_admin());
-CREATE POLICY "bairros_select_all" ON bairros FOR SELECT USING (true);
+CREATE POLICY "perfis_update_own" ON perfis FOR UPDATE USING (id = auth.uid()) WITH CHECK (perfil = (SELECT perfil FROM perfis WHERE id = auth.uid()));

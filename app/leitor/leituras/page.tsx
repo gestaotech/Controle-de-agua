@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
-
-const inp = { width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' };
-const lbl = { fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' as const };
+import { inp, lbl } from '@/lib/styles';
 
 export default function LeitorLeiturasPage() {
   const { user, profile } = useAuth();
@@ -23,16 +21,13 @@ export default function LeitorLeiturasPage() {
     if (!user || !profile) return;
     setErro('');
     try {
-      const bairro = profile.bairro_condominio;
       const [u, l] = await Promise.all([
-        supabase.from('unidades').select('id, endereco, numero_hidrometro, leitura_inicial').eq('bairro_condominio', bairro).eq('status', 'ativo').order('endereco'),
+        supabase.from('unidades').select('id, endereco, numero_hidrometro, leitura_inicial').eq('bairro_id', profile.bairro_id).eq('status', 'ativo').order('endereco'),
         supabase.from('leituras').select('*, unidades(endereco, numero_hidrometro)').eq('usuario_id', user.id).order('mes', { ascending: false }),
       ]);
       setUnidades(u.data || []);
       setLeituras(l.data || []);
-    } catch {
-      setErro('Erro ao carregar leituras.');
-    }
+    } catch { setErro('Erro ao carregar leituras.'); }
   };
 
   useEffect(() => { load(); }, [user, profile]);
@@ -41,9 +36,8 @@ export default function LeitorLeiturasPage() {
   const loadAnterior = async (unidadeId: string) => {
     if (!unidadeId) return;
     const { data } = await supabase.from('leituras').select('*').eq('unidade_id', unidadeId).order('mes', { ascending: false }).limit(1).maybeSingle();
-    if (data) {
-      setForm(f => ({ ...f, anterior: data.atual || 0 }));
-    } else {
+    if (data) setForm(f => ({ ...f, anterior: data.atual || 0 }));
+    else {
       const { data: unidade } = await supabase.from('unidades').select('leitura_inicial').eq('id', unidadeId).single();
       setForm(f => ({ ...f, anterior: Number(unidade?.leitura_inicial) || 0 }));
     }
@@ -54,16 +48,11 @@ export default function LeitorLeiturasPage() {
     if (!form.unidade_id || form.atual < form.anterior) return alert('Verifique os dados');
     try {
       const existente = await supabase.from('leituras').select('*').eq('unidade_id', form.unidade_id).eq('mes', form.mes).maybeSingle();
-      if (existente.data) {
-        await supabase.from('leituras').update({ anterior: form.anterior, atual: form.atual }).eq('id', existente.data.id);
-      } else {
-        await supabase.from('leituras').insert({ unidade_id: form.unidade_id, mes: form.mes, anterior: form.anterior, atual: form.atual, usuario_id: user?.id });
-      }
+      if (existente.data) await supabase.from('leituras').update({ anterior: form.anterior, atual: form.atual }).eq('id', existente.data.id);
+      else await supabase.from('leituras').insert({ unidade_id: form.unidade_id, mes: form.mes, anterior: form.anterior, atual: form.atual, usuario_id: user?.id });
       setForm(f => ({ ...f, atual: 0 }));
       load();
-    } catch {
-      alert('Erro ao salvar leitura.');
-    }
+    } catch { alert('Erro ao salvar leitura.'); }
   };
 
   return (

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createAsaasCustomer, createAsaasPixPayment, getPixQrCode } from '@/lib/asaas';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { cobrancaId, existingPaymentId, unidadeEndereco, mes, valorTotal, vencimento, empresa } = body;
+    const { cobrancaId, existingPaymentId, unidadeId, unidadeEndereco, mes, valorTotal, vencimento } = body;
 
     if (!cobrancaId) {
       return NextResponse.json({ error: 'cobrancaId é obrigatório' }, { status: 400 });
@@ -31,13 +37,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valor total inválido' }, { status: 400 });
     }
 
-    const customer = await createAsaasCustomer({
-      name: unidadeEndereco || 'Cliente',
-      externalReference: cobrancaId,
-    });
+    let customerId = '';
+    if (unidadeId) {
+      const { data: unidade } = await supabase.from('unidades').select('asaas_customer_id, endereco').eq('id', unidadeId).single();
+      customerId = unidade?.asaas_customer_id || '';
+    }
 
-    if (!customer || !customer.id) {
-      return NextResponse.json({ error: 'Erro ao criar cliente no Asaas' }, { status: 500 });
+    if (!customerId) {
+      const customer = await createAsaasCustomer({
+        name: unidadeEndereco || 'Cliente',
+        externalReference: unidadeId || cobrancaId,
+      });
+      if (!customer?.id) {
+        return NextResponse.json({ error: 'Erro ao criar cliente no Asaas' }, { status: 500 });
+      }
+      customerId = customer.id;
+      if (unidadeId) {
+        await supabase.from('unidades').update({ asaas_customer_id: customerId }).eq('id', unidadeId);
+      }
     }
 
     const dueDate = vencimento || (() => {
@@ -47,14 +64,14 @@ export async function POST(req: NextRequest) {
     })();
 
     const payment = await createAsaasPixPayment({
-      customer: customer.id,
+      customer: customerId,
       value: valorTotal,
       dueDate,
       description: `Fatura Agua - ${mes} - ${unidadeEndereco || ''}`,
       externalReference: cobrancaId,
     });
 
-    if (!payment || !payment.id) {
+    if (!payment?.id) {
       return NextResponse.json({ error: 'Erro ao criar cobrança no Asaas' }, { status: 500 });
     }
 
