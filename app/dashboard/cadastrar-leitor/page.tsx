@@ -69,7 +69,7 @@ export default function CadastrarLeitorPage() {
 
     setLoading(true);
     try {
-      const email = `${form.nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.app`;
+      const email = form.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '') + '@controle-agua.app';
       const { data, error } = await supabase.auth.signUp({
         email, password: form.senha, options: { data: { nome: form.nome } },
       });

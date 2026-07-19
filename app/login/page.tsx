@@ -4,6 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 
+function gerarEmail(nome: string) {
+  const base = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '');
+  return `${base}@controle-agua.app`;
+}
+
 export default function LoginPage() {
   const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
@@ -20,6 +25,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      if (!nome.trim() || !senha) {
+        setError('Preencha nome e senha');
+        setLoading(false);
+        return;
+      }
+
       if (isRegister) {
         if (senha !== confirmarSenha) {
           setError('As senhas não conferem');
@@ -32,7 +43,7 @@ export default function LoginPage() {
           return;
         }
 
-        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.app`;
+        const email = gerarEmail(nome);
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password: senha,
@@ -53,12 +64,7 @@ export default function LoginPage() {
         router.push('/dashboard');
         router.refresh();
       } else {
-        if (!nome || !senha) {
-          setError('Preencha nome e senha');
-          setLoading(false);
-          return;
-        }
-        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.app`;
+        const email = gerarEmail(nome);
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password: senha });
         if (signInError) throw signInError;
 
