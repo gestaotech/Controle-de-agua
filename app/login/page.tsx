@@ -32,7 +32,7 @@ export default function LoginPage() {
           return;
         }
 
-        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local`;
+        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.app`;
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password: senha,
@@ -58,7 +58,7 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.local`;
+        const email = `${nome.toLowerCase().replace(/\s+/g, '.')}@controle-agua.app`;
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password: senha });
         if (signInError) throw signInError;
 
