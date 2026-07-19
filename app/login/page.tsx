@@ -57,25 +57,38 @@ export default function LoginPage() {
         );
 
         const body = await res.json();
-        if (!res.ok) throw new Error(body.msg || body.error || `Erro ${res.status}`);
 
-        if (body.session) {
-          await supabase.auth.setSession({
-            access_token: body.session.access_token,
-            refresh_token: body.session.refresh_token,
-          });
+        if (!res.ok && (res.status !== 422 || (!body.msg?.toLowerCase().includes('already') && !body.error?.toLowerCase().includes('already')))) {
+          throw new Error(body.msg || body.error || `Erro ${res.status}`);
         }
 
-        const userId = body.id || body.user?.id;
-        if (userId) {
-          const { error: profileError } = await supabase.from('perfis').insert({
-            id: userId,
-            nome,
-            perfil: 'admin',
-            ativo: true,
-            contato: '',
-          });
-          if (profileError) throw profileError;
+        if (res.ok) {
+          if (body.session) {
+            await supabase.auth.setSession({
+              access_token: body.session.access_token,
+              refresh_token: body.session.refresh_token,
+            });
+          }
+
+          const userId = body.id || body.user?.id;
+          if (userId) {
+            const { error: profileError } = await supabase.from('perfis').insert({
+              id: userId, nome, perfil: 'admin', ativo: true, contato: '',
+            });
+            if (profileError && !profileError.message?.includes('duplicate key')) throw profileError;
+          }
+        } else {
+          const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password: senha });
+          if (signInError) throw signInError;
+
+          if (data.user) {
+            const { data: existing } = await supabase.from('perfis').select('id').eq('id', data.user.id).maybeSingle();
+            if (!existing) {
+              await supabase.from('perfis').insert({
+                id: data.user.id, nome, perfil: 'admin', ativo: true, contato: '',
+              });
+            }
+          }
         }
 
         router.push('/dashboard');

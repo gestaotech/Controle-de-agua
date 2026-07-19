@@ -82,15 +82,25 @@ export default function CadastrarLeitorPage() {
         }
       );
       const signupBody = await res.json();
-      if (!res.ok) throw new Error(signupBody.msg || signupBody.error || `Erro ${res.status}`);
 
-      const userId = signupBody.id || signupBody.user?.id;
+      if (!res.ok && (res.status !== 422 || (!signupBody.msg?.toLowerCase().includes('already') && !signupBody.error?.toLowerCase().includes('already')))) {
+        throw new Error(signupBody.msg || signupBody.error || `Erro ${res.status}`);
+      }
+
+      let userId = signupBody.id || signupBody.user?.id;
+
+      if (!res.ok) {
+        const lookup = await fetch('/api/lookup-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+        const lookupBody = await lookup.json();
+        if (lookupBody?.id) userId = lookupBody.id;
+      }
+
       if (userId) {
         const { error: profileError } = await supabase.from('perfis').insert({
           id: userId, nome: form.nome, perfil: 'leitor', ativo: true,
           bairro_id: form.bairro_id, contato: form.contato,
         });
-        if (profileError) throw profileError;
+        if (profileError && !profileError.message?.includes('duplicate key')) throw profileError;
       }
 
       setLinkGerado(`${window.location.origin}/login`);
