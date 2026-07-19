@@ -44,16 +44,32 @@ export default function LoginPage() {
         }
 
         const email = gerarEmail(nome);
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password: senha,
-          options: { data: { nome } },
-        });
-        if (signUpError) throw signUpError;
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/signup`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            },
+            body: JSON.stringify({ email, password: senha, data: { nome } }),
+          }
+        );
 
-        if (data.user) {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.msg || body.error || `Erro ${res.status}`);
+
+        if (body.session) {
+          await supabase.auth.setSession({
+            access_token: body.session.access_token,
+            refresh_token: body.session.refresh_token,
+          });
+        }
+
+        const userId = body.id || body.user?.id;
+        if (userId) {
           const { error: profileError } = await supabase.from('perfis').insert({
-            id: data.user.id,
+            id: userId,
             nome,
             perfil: 'admin',
             ativo: true,
@@ -61,6 +77,7 @@ export default function LoginPage() {
           });
           if (profileError) throw profileError;
         }
+
         router.push('/dashboard');
         router.refresh();
       } else {
@@ -70,8 +87,7 @@ export default function LoginPage() {
 
         if (data.user) {
           const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', data.user.id).single();
-          const redirectUrl = profile?.perfil === 'admin' ? '/dashboard' : '/leitor';
-          router.push(redirectUrl);
+          router.push(profile?.perfil === 'admin' ? '/dashboard' : '/leitor');
         }
         router.refresh();
       }
