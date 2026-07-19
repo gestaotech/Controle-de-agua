@@ -51,6 +51,14 @@ export default function CadastrarLeitorPage() {
     if (!authLoading && isAdmin) { loadLeitores(); loadBairros(); }
   }, [authLoading, isAdmin]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    const channel = supabase.channel('cadastrar-leitor-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'perfis', filter: `perfil=eq.leitor` }, loadLeitores)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [isAdmin]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro(''); setSucesso(''); setLinkGerado(''); setSenhaGerada('');
@@ -129,7 +137,7 @@ export default function CadastrarLeitorPage() {
             <input style={inp} value={form.contato} onChange={e => setForm({ ...form, contato: e.target.value })} placeholder="(00) 00000-0000" />
           </div>
           <div>
-            <label style={lbl}>Bairro/Condomínio de Atuação *</label>
+            <label style={lbl}>Bairro de Atuação *</label>
             <select style={inp} value={form.bairro_id} onChange={e => setForm({ ...form, bairro_id: e.target.value })} required>
               <option value="">Selecione</option>
               {bairros.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
@@ -152,7 +160,7 @@ export default function CadastrarLeitorPage() {
       </div>
 
       <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Leitores Cadastrados</h3>
+        <h3 style={{ marginBottom: 16, color: '#64748B', fontSize: '0.95rem' }}>Leitores Cadastrados ({leitores.length})</h3>
         <table>
           <thead><tr><th>Nome</th><th>Contato</th><th>Bairro</th><th>Status</th><th>Ações</th></tr></thead>
           <tbody>

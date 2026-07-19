@@ -10,6 +10,7 @@ export default function ConfigPage() {
   const { isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
   const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00 });
+  const [ambiente, setAmbiente] = useState('sandbox');
   const [erro, setErro] = useState('');
   const supabase = createClient();
 
@@ -25,6 +26,11 @@ export default function ConfigPage() {
         if (data?.[0]) {
           const c = data[0];
           setConfig({ empresa: c.empresa || '', cnpj: c.cnpj || '', contato: c.contato || '', valor_m3: c.valor_m3, taxa_fixa: c.taxa_fixa });
+        }
+        const res = await fetch('/api/asaas-env');
+        if (res.ok) {
+          const { environment } = await res.json();
+          setAmbiente(environment || 'sandbox');
         }
       } catch { setErro('Erro ao carregar configurações.'); }
     })();
@@ -65,7 +71,7 @@ export default function ConfigPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 6 }}>
               <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Ambiente</span>
-              <div style={{ fontSize: '0.9rem' }}>{process.env.ASAAS_ENVIRONMENT === 'production' ? 'Produção' : 'Sandbox (teste)'}</div>
+              <div style={{ fontSize: '0.9rem' }}>{ambiente === 'production' ? 'Produção' : 'Sandbox (teste)'}</div>
             </div>
             <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 6 }}>
               <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Status</span>

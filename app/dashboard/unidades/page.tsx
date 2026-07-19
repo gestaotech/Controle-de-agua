@@ -41,6 +41,13 @@ export default function UnidadesPage() {
 
   useEffect(() => { load(); }, [busca]);
 
+  useEffect(() => {
+    const channel = supabase.channel('unidades-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'unidades' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.endereco || !form.numero_hidrometro || !form.bairro_id) {

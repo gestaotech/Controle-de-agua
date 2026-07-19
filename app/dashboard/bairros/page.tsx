@@ -32,6 +32,14 @@ export default function BairrosPage() {
 
   useEffect(() => { load(); }, [isAdmin]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    const channel = supabase.channel('bairros-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bairros' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [isAdmin]);
+
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro(''); setSucesso('');
