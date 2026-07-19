@@ -26,6 +26,14 @@ export default function LeitorFaturasPage() {
 
   useEffect(() => { load(); }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel('faturas-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras', filter: `usuario_id=eq.${user.id}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
   const gerarFatura = async (leitura: any) => {
     if (gerando) return;
     setGerando(true); setErro('');

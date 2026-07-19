@@ -31,6 +31,15 @@ export default function LeitorLeiturasPage() {
   };
 
   useEffect(() => { load(); }, [user, profile]);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel('leituras-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras', filter: `usuario_id=eq.${user.id}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
   useEffect(() => { setConsumo(form.atual - form.anterior); }, [form.atual, form.anterior]);
 
   const loadAnterior = async (unidadeId: string) => {

@@ -11,31 +11,40 @@ export default function LeitorDashboardPage() {
   const [erro, setErro] = useState('');
   const supabase = createClient();
 
+  const load = async () => {
+    if (!user || !profile) return;
+    setErro('');
+    try {
+      const [u, l, unids] = await Promise.all([
+        supabase.from('unidades').select('*', { count: 'exact', head: true }).eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
+        supabase.from('leituras').select('*', { count: 'exact', head: true }).eq('usuario_id', user.id),
+        supabase.from('unidades').select('id').eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
+      ]);
+
+      const ids = (unids.data || []).map(u => u.id);
+      let pendentes = 0;
+      if (ids.length > 0) {
+        const { count } = await supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente').in('unidade_id', ids);
+        pendentes = count || 0;
+      }
+      setStats({ unidades: u.count || 0, leituras: l.count || 0, pendentes });
+
+      const { data: leituras } = await supabase
+        .from('leituras').select('*, unidades(endereco, numero_hidrometro, bairros(nome))')
+        .eq('usuario_id', user.id).order('criado_em', { ascending: false }).limit(5);
+      setUltimasLeituras(leituras || []);
+    } catch { setErro('Erro ao carregar dados.'); }
+  };
+
+  useEffect(() => { load(); }, [user, profile]);
+
   useEffect(() => {
     if (!user || !profile) return;
-    (async () => {
-      setErro('');
-      try {
-        const [u, l, unids] = await Promise.all([
-          supabase.from('unidades').select('*', { count: 'exact', head: true }).eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
-          supabase.from('leituras').select('*', { count: 'exact', head: true }).eq('usuario_id', user.id),
-          supabase.from('unidades').select('id').eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
-        ]);
-
-        const ids = (unids.data || []).map(u => u.id);
-        let pendentes = 0;
-        if (ids.length > 0) {
-          const { count } = await supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente').in('unidade_id', ids);
-          pendentes = count || 0;
-        }
-        setStats({ unidades: u.count || 0, leituras: l.count || 0, pendentes });
-
-        const { data: leituras } = await supabase
-          .from('leituras').select('*, unidades(endereco, numero_hidrometro, bairros(nome))')
-          .eq('usuario_id', user.id).order('criado_em', { ascending: false }).limit(5);
-        setUltimasLeituras(leituras || []);
-      } catch { setErro('Erro ao carregar dados.'); }
-    })();
+    const channel = supabase.channel('leitor-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras', filter: `usuario_id=eq.${user.id}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'unidades', filter: `bairro_id=eq.${profile.bairro_id}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user, profile]);
 
   const cards = [
