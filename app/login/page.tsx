@@ -44,16 +44,33 @@ export default function LoginPage() {
         }
 
         const email = gerarEmail(nome);
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password: senha,
-          options: { data: { nome } },
-        });
-        if (signUpError) throw signUpError;
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/signup`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            },
+            body: JSON.stringify({
+              email,
+              password: senha,
+              data: { nome },
+              gotrue_meta_security: {},
+            }),
+          }
+        );
 
-        if (data.user) {
+        const body = await res.json();
+
+        if (!res.ok) {
+          throw new Error(body.msg || body.error || body.error_description || `Erro ${res.status}`);
+        }
+
+        if (body.id || body.user?.id) {
+          const userId = body.id || body.user.id;
           const { error: profileError } = await supabase.from('perfis').insert({
-            id: data.user.id,
+            id: userId,
             nome,
             perfil: 'admin',
             ativo: true,
