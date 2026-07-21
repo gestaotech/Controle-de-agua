@@ -11,6 +11,8 @@ export default function LeitorFaturasPage() {
   const [erro, setErro] = useState('');
   const [copiado, setCopiado] = useState(false);
   const [gerando, setGerando] = useState(false);
+  const [ambiente, setAmbiente] = useState('');
+  const [simulando, setSimulando] = useState(false);
   const supabase = createClient();
 
   const load = async () => {
@@ -100,16 +102,38 @@ export default function LeitorFaturasPage() {
         await supabase.from('cobrancas').update({ asaas_payment_id: paymentId, pix_payload: pixPayload }).eq('id', cobrancaId);
       }
 
+      const envRes = await fetch('/api/asaas-env');
+      if (envRes.ok) { const e = await envRes.json(); setAmbiente(e.environment || ''); }
+
       setFatura({
         unidade: leitura.unidades, mes: leitura.mes, consumo: leitura.consumo,
         valorM3: Number(c.valor_m3), taxaFixa: Number(c.taxa_fixa), valorTotal,
         vencimento: venc.toISOString().split('T')[0], empresa: c.empresa,
         cnpj: c.cnpj, contato: c.contato, codigo,
         pixPayload: pixPayload || '', qrCodeBase64, temPIX: !!qrCodeBase64, pixErro,
+        paymentId,
       });
     } catch (err: any) {
       alert(err.message || 'Erro ao gerar fatura.');
     } finally { setGerando(false); }
+  };
+
+  const simularPagamento = async () => {
+    if (!fatura?.paymentId || simulando) return;
+    setSimulando(true);
+    try {
+      const res = await fetch('/api/simular-pagamento', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId: fatura.paymentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao simular');
+      alert('Pagamento simulado com sucesso! O status da fatura foi atualizado.');
+      fecharFatura();
+      load();
+    } catch (err: any) {
+      alert(err.message);
+    } finally { setSimulando(false); }
   };
 
   const fecharFatura = () => { setFatura(null); setCopiado(false); };
@@ -184,8 +208,11 @@ export default function LeitorFaturasPage() {
                     <img src={fatura.qrCodeBase64} alt="QR Code PIX" style={{ width: 200, height: 200 }} />
                   </div>
                 </div>
-                <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <div style={{ marginTop: 12, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 8 }}>
                   <button onClick={copiarPix} style={{ padding: '6px 16px', background: copiado ? '#10B981' : '#F1F5F9', color: copiado ? '#fff' : '#1E293B', border: '1px solid #E2E8F0', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>{copiado ? 'Copiado!' : 'Copiar Codigo PIX'}</button>
+                  {ambiente === 'sandbox' && fatura.paymentId && (
+                    <button onClick={simularPagamento} disabled={simulando} style={{ padding: '6px 16px', background: simulando ? '#94A3B8' : '#F59E0B', color: '#fff', border: 'none', borderRadius: 6, cursor: simulando ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}>{simulando ? 'Simulando...' : 'Simular Pagamento'}</button>
+                  )}
                 </div>
               </div>
             )}
