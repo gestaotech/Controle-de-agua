@@ -7,3 +7,6 @@ CREATE TABLE config (
   taxa_fixa NUMERIC(10,2) NOT NULL DEFAULT 15.00,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Garante que so exista uma unica linha de configuracao
+CREATE UNIQUE INDEX idx_config_singleton ON config ((true));

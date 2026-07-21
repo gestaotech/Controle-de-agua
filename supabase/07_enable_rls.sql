@@ -38,22 +38,22 @@ CREATE POLICY "bairros_select_all" ON bairros FOR SELECT USING (true);
 
 -- UNIDADES
 CREATE POLICY "unidades_all_admin" ON unidades FOR ALL USING (is_admin());
-CREATE POLICY "unidades_select_leitor" ON unidades FOR SELECT USING (true);
+CREATE POLICY "unidades_select_all" ON unidades FOR SELECT USING (true);
 
 -- LEITURAS
 CREATE POLICY "leituras_all_admin" ON leituras FOR ALL USING (is_admin());
-CREATE POLICY "leituras_select_leitor" ON leituras FOR SELECT USING (true);
+CREATE POLICY "leituras_select_all" ON leituras FOR SELECT USING (true);
 CREATE POLICY "leituras_insert_leitor" ON leituras FOR INSERT WITH CHECK (usuario_id = auth.uid());
 CREATE POLICY "leituras_update_leitor" ON leituras FOR UPDATE USING (usuario_id = auth.uid());
 
 -- COBRANCAS
 CREATE POLICY "cobrancas_all_admin" ON cobrancas FOR ALL USING (is_admin());
-CREATE POLICY "cobrancas_select_leitor" ON cobrancas FOR SELECT USING (true);
+CREATE POLICY "cobrancas_select_all" ON cobrancas FOR SELECT USING (true);
 CREATE POLICY "cobrancas_insert_leitor" ON cobrancas FOR INSERT WITH CHECK (usuario_id = auth.uid());
 
 -- CONFIG
 CREATE POLICY "config_all_admin" ON config FOR ALL USING (is_admin());
-CREATE POLICY "config_select_leitor" ON config FOR SELECT USING (true);
+CREATE POLICY "config_select_all" ON config FOR SELECT USING (true);
 
 -- PERFIS
 CREATE POLICY "perfis_all_admin" ON perfis FOR ALL USING (is_admin());

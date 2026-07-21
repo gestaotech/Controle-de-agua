@@ -9,3 +9,5 @@ CREATE TABLE leituras (
   criado_em TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(unidade_id, mes)
 );
+
+CREATE INDEX idx_leituras_usuario_id ON leituras(usuario_id);

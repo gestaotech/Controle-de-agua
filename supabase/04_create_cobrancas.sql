@@ -14,3 +14,6 @@ CREATE TABLE cobrancas (
   criado_em TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(unidade_id, mes)
 );
+
+CREATE INDEX idx_cobrancas_usuario_id ON cobrancas(usuario_id);
+CREATE INDEX idx_cobrancas_status ON cobrancas(status);

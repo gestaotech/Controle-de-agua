@@ -4,3 +4,5 @@ CREATE TABLE bairros (
   ativo BOOLEAN DEFAULT true,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_bairros_ativo ON bairros(ativo);

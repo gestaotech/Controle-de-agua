@@ -9,3 +9,6 @@ CREATE TABLE unidades (
   asaas_customer_id TEXT,
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_unidades_bairro_id ON unidades(bairro_id);
+CREATE INDEX idx_unidades_status ON unidades(status);

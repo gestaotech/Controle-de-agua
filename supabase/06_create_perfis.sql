@@ -7,3 +7,6 @@ CREATE TABLE perfis (
   contato TEXT DEFAULT '',
   criado_em TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_perfis_perfil ON perfis(perfil);
+CREATE INDEX idx_perfis_bairro_id ON perfis(bairro_id);
