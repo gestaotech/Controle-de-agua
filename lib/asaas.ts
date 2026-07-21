@@ -37,12 +37,19 @@ async function asaasFetch(path: string, options: RequestInit = {}): Promise<any>
     },
   });
 
+  const body = await res.text();
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.errors?.[0]?.description || `Asaas API error: ${res.status}`);
+    let msg = `Asaas API error: ${res.status}`;
+    try { const j = JSON.parse(body); msg = j.errors?.[0]?.description || msg; } catch {}
+    throw new Error(msg);
   }
 
-  return res.json();
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(`Asaas retornou HTML em vez de JSON (status ${res.status}). URL: ${ASAAS_BASE}${path}. Key termina com: ...${ASAAS_KEY.slice(-8)}`);
+  }
 }
 
 export async function createAsaasCustomer(data: {
