@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const res = await fetch(
-      `https://api-sandbox.asaas.com/v3/payments/${paymentId}/confirmPayment`,
+      `https://api-sandbox.asaas.com/v3/sandbox/payment/${paymentId}/confirm`,
       {
         method: 'POST',
         headers: {
