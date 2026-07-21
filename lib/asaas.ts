@@ -1,6 +1,6 @@
 const ASAAS_BASE = process.env.ASAAS_ENVIRONMENT === 'production'
   ? 'https://api.asaas.com/v3'
-  : 'https://sandbox.asaas.com/v3';
+  : 'https://api-sandbox.asaas.com/v3';
 
 const ASAAS_KEY = process.env.ASAAS_API_KEY || '';
 
