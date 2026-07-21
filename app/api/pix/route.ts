@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     if (!customerId) {
       const customer = await createAsaasCustomer({
         name: unidadeEndereco || 'Cliente',
+        cpfCnpj: '00000000000',
         externalReference: unidadeId || cobrancaId,
       });
       if (!customer?.id) {
