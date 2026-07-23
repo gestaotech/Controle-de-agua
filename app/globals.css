@@ -48,6 +48,8 @@ tr:hover { background: var(--bg); }
 .badge-info { background: #CFFAFE; color: #155E75; }
 .badge-secondary { background: #F1F5F9; color: #475569; }
 
+@keyframes spin { to { transform: rotate(360deg); } }
+
 @media print {
   .no-print { display: none !important; }
 }
