@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
-import { Card, Table } from '@/components'
+import { Card, Table, Button } from '@/components'
 
 export default function LeitorDashboardPage() {
   const { user, profile } = useAuth()
@@ -12,7 +12,7 @@ export default function LeitorDashboardPage() {
   const [ultimasLeituras, setUltimasLeituras] = useState<any[]>([])
   const [erro, setErro] = useState('')
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user || !profile) return
     setErro('')
     try {
@@ -21,7 +21,7 @@ export default function LeitorDashboardPage() {
         supabase.from('leituras').select('*', { count: 'exact', head: true }).eq('usuario_id', user.id),
         supabase.from('unidades').select('id').eq('bairro_id', profile.bairro_id).eq('status', 'ativo'),
       ])
-      const ids = (unids.data || []).map(u => u.id)
+      const ids = (unids.data || []).map((u: any) => u.id)
       let pendentes = 0
       if (ids.length > 0) {
         const { count } = await supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente').in('unidade_id', ids)
@@ -33,19 +33,26 @@ export default function LeitorDashboardPage() {
         .from('leituras').select('*, unidades(endereco, numero_hidrometro, bairros(nome))')
         .eq('usuario_id', user.id).order('criado_em', { ascending: false }).limit(5)
       setUltimasLeituras(leituras || [])
-    } catch { setErro('Erro ao carregar dados.') }
-  }
+    } catch (err: any) { setErro(err.message || 'Erro ao carregar dados.') }
+  }, [user, profile, supabase])
 
-  useEffect(() => { load() }, [user, profile])
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     if (!user || !profile) return
     const channel = supabase.channel('leitor-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras', filter: `usuario_id=eq.${user.id}` }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'unidades', filter: `bairro_id=eq.${profile.bairro_id}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras', filter: `usuario_id=eq.${user.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cobrancas', filter: `usuario_id=eq.${user.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'unidades', filter: `bairro_id=eq.${profile.bairro_id}` }, () => load())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [user, profile])
+  }, [user, profile, load])
+
+  useEffect(() => {
+    const handler = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [load])
 
   const cards = [
     { icon: '🏠', label: 'Unidades no Bairro', value: stats.unidades, color: '#DBEAFE' },
@@ -55,7 +62,12 @@ export default function LeitorDashboardPage() {
 
   return (
     <div>
-      {erro && <p style={{ color: '#DC2626', marginBottom: 16 }}>{erro}</p>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        {erro && <p style={{ color: '#DC2626', margin: 0 }}>{erro}</p>}
+        <div />
+        <Button size="sm" variant="secondary" onClick={load}>Recarregar</Button>
+      </div>
+
       {profile?.bairro_nome && (
         <p style={{ color: '#64748B', marginBottom: 16, fontSize: '0.9rem' }}>
           Área de atuação: <strong>{profile.bairro_nome}</strong>
