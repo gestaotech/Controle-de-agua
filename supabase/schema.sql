@@ -3,15 +3,15 @@
 -- Execute no SQL Editor do Supabase para criar/atualizar o banco
 -- =============================================================================
 
--- Limpeza inicial (opcional - descomente para resetar)
--- DROP TABLE IF EXISTS leituras CASCADE;
--- DROP TABLE IF EXISTS cobrancas CASCADE;
--- DROP TABLE IF EXISTS unidades CASCADE;
--- DROP TABLE IF EXISTS perfis CASCADE;
--- DROP TABLE IF EXISTS config CASCADE;
--- DROP TABLE IF EXISTS bairros CASCADE;
--- DROP FUNCTION IF EXISTS get_user_role CASCADE;
--- DROP FUNCTION IF EXISTS is_admin CASCADE;
+-- Limpeza inicial (remove tudo para começar do zero)
+DROP TABLE IF EXISTS leituras CASCADE;
+DROP TABLE IF EXISTS cobrancas CASCADE;
+DROP TABLE IF EXISTS unidades CASCADE;
+DROP TABLE IF EXISTS perfis CASCADE;
+DROP TABLE IF EXISTS config CASCADE;
+DROP TABLE IF EXISTS bairros CASCADE;
+DROP FUNCTION IF EXISTS get_user_role CASCADE;
+DROP FUNCTION IF EXISTS is_admin CASCADE;
 
 -- =============================================================================
 -- TABELAS
