@@ -125,13 +125,7 @@ Pelo presente instrumento particular, as partes acima qualificadas celebram o pr
 
 13.3. As cláusulas deste contrato que, por qualquer motivo, forem consideradas nulas ou ineficazes, não afetarão as demais, que permanecem válidas e eficazes.
 
-## CLÁUSULA 14ª — DO FORO
 
-14.1. Fica eleito o foro da comarca de **Fortaleza/CE** para dirimir quaisquer controvérsias oriundas do presente contrato, com renúncia a qualquer outro, por mais privilegiado que seja.
-
----
-
-Por estarem assim justos e contratados, as partes firmam o presente instrumento em 02 (duas) vias de igual teor.
 
 **Local e data:** ______________________, ____ de ______________ de 2026.
 
