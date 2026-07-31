@@ -50,6 +50,12 @@ export default function BairrosPage() {
         if (error) { if (error.code === '23505') setErro('Já existe um bairro com esse nome.'); else throw error }
         setSucesso('Bairro atualizado!'); setEditando(null)
       } else {
+        const { count } = await supabase
+          .from('bairros').select('*', { count: 'exact', head: true })
+        if ((count || 0) >= 2) {
+          alert('Limite de memoria atingido, contate o suporte.')
+          return
+        }
         const { error } = await supabase.from('bairros').insert({ nome: novoBairro.trim() })
         if (error) { if (error.code === '23505') setErro('Já existe um bairro com esse nome.'); else throw error }
         setSucesso('Bairro cadastrado!')

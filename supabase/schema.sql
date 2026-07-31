@@ -178,6 +178,40 @@ CREATE POLICY "perfis_update_own"     ON perfis    FOR UPDATE USING (id = auth.u
   WITH CHECK (perfil = (SELECT perfil FROM perfis WHERE id = auth.uid()));
 
 -- =============================================================================
+-- LIMITES DO SISTEMA (2 bairros, 500 unidades por bairro)
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION check_limite_bairros()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (SELECT COUNT(*) FROM bairros) >= 2 THEN
+    RAISE EXCEPTION 'Limite de memoria atingido, contate o suporte.';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_limite_bairros ON bairros;
+CREATE TRIGGER trg_limite_bairros
+  BEFORE INSERT ON bairros
+  FOR EACH ROW EXECUTE FUNCTION check_limite_bairros();
+
+CREATE OR REPLACE FUNCTION check_limite_unidades()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (SELECT COUNT(*) FROM unidades WHERE bairro_id = NEW.bairro_id) >= 500 THEN
+    RAISE EXCEPTION 'Limite de memoria atingido, contate o suporte.';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_limite_unidades ON unidades;
+CREATE TRIGGER trg_limite_unidades
+  BEFORE INSERT ON unidades
+  FOR EACH ROW EXECUTE FUNCTION check_limite_unidades();
+
+-- =============================================================================
 -- DADOS INICIAIS
 -- =============================================================================
 

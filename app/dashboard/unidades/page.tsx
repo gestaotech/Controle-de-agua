@@ -46,6 +46,12 @@ export default function UnidadesPage() {
       if (editId) {
         await supabase.from('unidades').update({ endereco: form.endereco, numero_hidrometro: form.numero_hidrometro, bairro_id: form.bairro_id, status: form.status }).eq('id', editId)
       } else {
+        const { count } = await supabase
+          .from('unidades').select('*', { count: 'exact', head: true }).eq('bairro_id', form.bairro_id)
+        if ((count || 0) >= 500) {
+          alert('Limite de memoria atingido, contate o suporte.')
+          return
+        }
         await supabase.from('unidades').insert({ endereco: form.endereco, numero_hidrometro: form.numero_hidrometro, bairro_id: form.bairro_id, leitura_inicial: form.leitura_inicial, data_leitura_inicial: form.data_leitura_inicial, status: form.status })
       }
       resetForm(); load()
