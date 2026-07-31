@@ -44,9 +44,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!customerId) {
+      const cpfCnpj = process.env.ASAAS_CUSTOMER_CPF || '';
+      if (!cpfCnpj) {
+        return NextResponse.json({ error: 'ASAAS_CUSTOMER_CPF não configurado (CPF/CNPJ do cliente é obrigatório em produção)' }, { status: 500 });
+      }
       const customer = await createAsaasCustomer({
         name: unidadeEndereco || 'Cliente',
-        cpfCnpj: '00000000000',
+        cpfCnpj,
         externalReference: unidadeId || cobrancaId,
       });
       if (!customer?.id) {
