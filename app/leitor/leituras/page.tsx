@@ -47,7 +47,7 @@ export default function LeitorLeiturasPage() {
     const { data } = await supabase.from('leituras').select('*').eq('unidade_id', unidadeId).order('mes', { ascending: false }).limit(1).maybeSingle()
     if (data) setForm(f => ({ ...f, anterior: data.atual || 0 }))
     else {
-      const { data: unidade } = await supabase.from('unidades').select('leitura_inicial').eq('id', unidadeId).single()
+      const { data: unidade } = await supabase.from('unidades').select('leitura_inicial').eq('id', unidadeId).maybeSingle()
       setForm(f => ({ ...f, anterior: Number(unidade?.leitura_inicial) || 0 }))
     }
   }

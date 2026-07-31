@@ -21,6 +21,7 @@ export default async function Home() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', user.id).maybeSingle();
+  if (!profile) redirect('/login');
   redirect(profile?.perfil === 'admin' ? '/dashboard' : '/leitor');
 }

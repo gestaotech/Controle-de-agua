@@ -99,7 +99,15 @@ export default function LoginPage() {
         if (signInError) throw signInError;
 
         if (data.user) {
-          const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', data.user.id).single();
+          const { data: profile } = await supabase.from('perfis').select('perfil').eq('id', data.user.id).maybeSingle();
+          if (!profile) {
+            await supabase.from('perfis').insert({
+              id: data.user.id, nome, perfil: 'admin', ativo: true, contato: '',
+            });
+            router.push('/dashboard');
+            router.refresh();
+            return;
+          }
           router.push(profile?.perfil === 'admin' ? '/dashboard' : '/leitor');
         }
         router.refresh();

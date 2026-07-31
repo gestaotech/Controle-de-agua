@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     let customerId = '';
     if (unidadeId) {
-      const { data: unidade } = await supabase.from('unidades').select('asaas_customer_id, endereco').eq('id', unidadeId).single();
+      const { data: unidade } = await supabase.from('unidades').select('asaas_customer_id, endereco').eq('id', unidadeId).maybeSingle();
       customerId = unidade?.asaas_customer_id || '';
     }
 

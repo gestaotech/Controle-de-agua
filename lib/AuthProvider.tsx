@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('perfis')
           .select('*, bairros!left(nome)')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         if (data) {
           setProfile({
             id: data.id,
