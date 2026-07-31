@@ -216,6 +216,9 @@ export default function LoginPage() {
           </a>
         </p>
       </div>
+      <p style={{ position: 'absolute', bottom: 12, width: '100%', textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem' }}>
+        Gestão Tech 2026
+      </p>
     </div>
   );
 }

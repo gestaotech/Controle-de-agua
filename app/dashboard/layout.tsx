@@ -103,6 +103,9 @@ function DashboardShell({ children }: { children: ReactNode }) {
           <h2>{pageTitle}</h2>
         </header>
         <div style={{ padding: '2rem' }}>{children}</div>
+        <footer style={{ padding: '0 2rem 1.5rem', textAlign: 'center', fontSize: '0.75rem', color: '#94A3B8' }}>
+          Gestão Tech 2026
+        </footer>
       </main>
 
       <style>{`
