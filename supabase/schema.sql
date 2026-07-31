@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS cobrancas (
   mes              TEXT NOT NULL,
   consumo          NUMERIC(10,2) NOT NULL,
   valor_m3         NUMERIC(10,2) NOT NULL DEFAULT 8.50,
+  taxa_esgoto      NUMERIC(10,2) NOT NULL DEFAULT 0,
   taxa_fixa        NUMERIC(10,2) NOT NULL DEFAULT 15.00,
   valor_total      NUMERIC(10,2) NOT NULL,
   vencimento       DATE NOT NULL,
@@ -77,13 +78,14 @@ CREATE INDEX IF NOT EXISTS idx_cobrancas_usuario_id ON cobrancas(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_cobrancas_status     ON cobrancas(status);
 
 CREATE TABLE IF NOT EXISTS config (
-  id        UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  empresa   TEXT NOT NULL DEFAULT 'Saneamento Basico',
-  cnpj      TEXT DEFAULT '',
-  contato   TEXT DEFAULT '',
-  valor_m3  NUMERIC(10,2) NOT NULL DEFAULT 8.50,
-  taxa_fixa NUMERIC(10,2) NOT NULL DEFAULT 15.00,
-  criado_em TIMESTAMPTZ DEFAULT NOW()
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa     TEXT NOT NULL DEFAULT 'Saneamento Basico',
+  cnpj        TEXT DEFAULT '',
+  contato     TEXT DEFAULT '',
+  valor_m3    NUMERIC(10,2) NOT NULL DEFAULT 8.50,
+  taxa_esgoto NUMERIC(10,2) NOT NULL DEFAULT 0,
+  taxa_fixa   NUMERIC(10,2) NOT NULL DEFAULT 15.00,
+  criado_em   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Garante que exista apenas uma linha de configuração
@@ -179,8 +181,8 @@ CREATE POLICY "perfis_update_own"     ON perfis    FOR UPDATE USING (id = auth.u
 -- DADOS INICIAIS
 -- =============================================================================
 
-INSERT INTO config (empresa, cnpj, contato, valor_m3, taxa_fixa)
-VALUES ('Saneamento Basico', '', '', 8.50, 15.00)
+INSERT INTO config (empresa, cnpj, contato, valor_m3, taxa_esgoto, taxa_fixa)
+VALUES ('Saneamento Basico', '', '', 8.50, 0, 15.00)
 ON CONFLICT DO NOTHING;
 
 -- =============================================================================

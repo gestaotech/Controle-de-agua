@@ -10,7 +10,7 @@ export default function ConfigPage() {
   const { isAdmin, loading: authLoading } = useAuth()
   const router = useRouter()
   const supabase = createClient()
-  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_fixa: 15.00 })
+  const [config, setConfig] = useState({ empresa: '', cnpj: '', contato: '', valor_m3: 8.50, taxa_esgoto: 0, taxa_fixa: 15.00 })
   const [ambiente, setAmbiente] = useState('sandbox')
   const [erro, setErro] = useState('')
 
@@ -25,7 +25,7 @@ export default function ConfigPage() {
         const { data } = await supabase.from('config').select('*').limit(1)
         if (data?.[0]) {
           const c = data[0]
-          setConfig({ empresa: c.empresa || '', cnpj: c.cnpj || '', contato: c.contato || '', valor_m3: c.valor_m3, taxa_fixa: c.taxa_fixa })
+          setConfig({ empresa: c.empresa || '', cnpj: c.cnpj || '', contato: c.contato || '', valor_m3: c.valor_m3, taxa_esgoto: c.taxa_esgoto || 0, taxa_fixa: c.taxa_fixa })
         }
         const res = await fetch('/api/asaas-env')
         if (res.ok) { const { environment } = await res.json(); setAmbiente(environment || 'sandbox') }
@@ -56,8 +56,12 @@ export default function ConfigPage() {
           <Input label="Contato" value={config.contato} onChange={(e: any) => setConfig({ ...config, contato: e.target.value })} placeholder="(00) 00000-0000" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input label="Valor por m³ (R$)" type="number" step="0.01" value={config.valor_m3} onChange={(e: any) => setConfig({ ...config, valor_m3: parseFloat(e.target.value) || 0 })} />
+          <Input label="Valor por m³ de Água (R$)" type="number" step="0.01" value={config.valor_m3} onChange={(e: any) => setConfig({ ...config, valor_m3: parseFloat(e.target.value) || 0 })} />
+          <Input label="Taxa de Esgoto por m³ (R$)" type="number" step="0.01" value={config.taxa_esgoto} onChange={(e: any) => setConfig({ ...config, taxa_esgoto: parseFloat(e.target.value) || 0 })} placeholder="Calculada sobre o consumo de água" />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input label="Taxa Fixa Mensal (R$)" type="number" step="0.01" value={config.taxa_fixa} onChange={(e: any) => setConfig({ ...config, taxa_fixa: parseFloat(e.target.value) || 0 })} />
+          <div />
         </div>
 
         <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 16, marginTop: 8 }}>

@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'bairro_id e mes são obrigatórios' }, { status: 400 })
     }
 
-    const { data: config } = await supabase.from('config').select('valor_m3, taxa_fixa').limit(1)
+    const { data: config } = await supabase.from('config').select('valor_m3, taxa_esgoto, taxa_fixa').limit(1)
     const valor_m3 = Number(config?.[0]?.valor_m3 || 8.50)
+    const taxa_esgoto = Number(config?.[0]?.taxa_esgoto || 0)
     const taxa_fixa = Number(config?.[0]?.taxa_fixa || 15.00)
 
     const { data: unidades } = await supabase
@@ -53,13 +54,14 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      const valorTotal = Number(leitura.consumo) * valor_m3 + taxa_fixa
+      const valorTotal = Number(leitura.consumo) * valor_m3 + Number(leitura.consumo) * taxa_esgoto + taxa_fixa
 
       const { error } = await supabase.from('cobrancas').insert({
         unidade_id: leitura.unidade_id,
         mes,
         consumo: leitura.consumo,
         valor_m3,
+        taxa_esgoto,
         taxa_fixa,
         valor_total: valorTotal,
         vencimento: vencStr,

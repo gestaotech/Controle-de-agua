@@ -50,9 +50,10 @@ export default function LeitorFaturasPage() {
     setGerando(true); setErro('')
     try {
       const { data: cfg } = await supabase.from('config').select('*').limit(1)
-      const c = cfg?.[0] || { empresa: 'Saneamento Basico', valor_m3: 8.50, taxa_fixa: 15.00, cnpj: '', contato: '' }
+      const c = cfg?.[0] || { empresa: 'Saneamento Basico', valor_m3: 8.50, taxa_esgoto: 0, taxa_fixa: 15.00, cnpj: '', contato: '' }
       const venc = new Date(); venc.setDate(venc.getDate() + 10)
-      const valorTotal = Number(leitura.consumo) * Number(c.valor_m3) + Number(c.taxa_fixa)
+      const valorEsgoto = Number(leitura.consumo) * Number(c.taxa_esgoto || 0)
+      const valorTotal = Number(leitura.consumo) * Number(c.valor_m3) + valorEsgoto + Number(c.taxa_fixa)
       const codigo = 'AG' + Date.now().toString().slice(-8)
 
       const { data: existentes } = await supabase
@@ -67,7 +68,7 @@ export default function LeitorFaturasPage() {
         const { data: nova, error: insertErr } = await supabase
           .from('cobrancas').insert({
             unidade_id: leitura.unidade_id, mes: leitura.mes, consumo: leitura.consumo,
-            valor_m3: Number(c.valor_m3), taxa_fixa: Number(c.taxa_fixa),
+            valor_m3: Number(c.valor_m3), taxa_esgoto: Number(c.taxa_esgoto || 0), taxa_fixa: Number(c.taxa_fixa),
             valor_total: valorTotal, vencimento: venc.toISOString().split('T')[0],
             status: 'pendente', usuario_id: user?.id,
           }).select('id').single()
@@ -109,7 +110,8 @@ export default function LeitorFaturasPage() {
 
       setFatura({
         unidade: leitura.unidades, mes: leitura.mes, consumo: leitura.consumo,
-        valorM3: Number(c.valor_m3), taxaFixa: Number(c.taxa_fixa), valorTotal,
+        valorM3: Number(c.valor_m3), taxaEsgoto: Number(c.taxa_esgoto || 0),
+        valorEsgoto, taxaFixa: Number(c.taxa_fixa), valorTotal,
         vencimento: venc.toISOString().split('T')[0], empresa: c.empresa,
         cnpj: c.cnpj, contato: c.contato, codigo,
         pixPayload: pixPayload || '', qrCodeBase64, temPIX: !!qrCodeBase64, pixErro,
@@ -200,9 +202,23 @@ export default function LeitorFaturasPage() {
               <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Vencimento</label><div>{new Date(fatura.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</div></div>
             </div>
 
-            <div style={{ background: '#F8FAFC', padding: 20, borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ color: '#64748B', fontSize: '0.85rem' }}>VALOR TOTAL</div>
-              <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#3B82F6' }}>R$ {fatura.valorTotal.toFixed(2).replace('.', ',')}</div>
+            <div style={{ background: '#F8FAFC', padding: 20, borderRadius: 8, marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '4px 0', color: '#475569' }}>
+                <span>Consumo de água ({fatura.consumo} m³ × R$ {fatura.valorM3.toFixed(2)})</span>
+                <span>R$ {(fatura.consumo * fatura.valorM3).toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '4px 0', color: '#475569' }}>
+                <span>Taxa de esgoto ({fatura.consumo} m³ × R$ {fatura.taxaEsgoto.toFixed(2)})</span>
+                <span>R$ {fatura.valorEsgoto.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '4px 0', color: '#475569' }}>
+                <span>Taxa fixa</span>
+                <span>R$ {fatura.taxaFixa.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div style={{ borderTop: '1px solid #E2E8F0', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748B', fontSize: '0.85rem' }}>VALOR TOTAL</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3B82F6' }}>R$ {fatura.valorTotal.toFixed(2).replace('.', ',')}</span>
+              </div>
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
