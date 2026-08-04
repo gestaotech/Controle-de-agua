@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { Card, Table, Button, Badge, statusBadge, Modal, Input, Select } from '@/components'
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ unidades: 0, ativas: 0, pendentes: 0, leitores: 0, pago: 0 })
+  const [stats, setStats] = useState({ unidades: 0, ativas: 0, pendentes: 0, leitores: 0, pago: 0, totalPendente: 0 })
   const [cobrancas, setCobrancas] = useState<any[]>([])
   const [erro, setErro] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -19,15 +19,16 @@ export default function DashboardPage() {
   const load = async () => {
     setErro('')
     try {
-      const [u, a, p, l, pg, c] = await Promise.all([
+      const [u, a, p, l, pg, tp, c] = await Promise.all([
         supabase.from('unidades').select('*', { count: 'exact', head: true }),
         supabase.from('unidades').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
         supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
         supabase.from('perfis').select('*', { count: 'exact', head: true }).eq('perfil', 'leitor').eq('ativo', true),
         supabase.from('cobrancas').select('*', { count: 'exact', head: true }).eq('status', 'pago'),
+        supabase.from('cobrancas').select('valor_total', { count: 'exact' }).eq('status', 'pendente').returns<any[]>(),
         supabase.from('cobrancas').select('*, unidades!inner(endereco, numero_hidrometro, bairros!inner(nome))').order('criado_em', { ascending: false }).limit(20),
       ])
-      setStats({ unidades: u.count || 0, ativas: a.count || 0, pendentes: p.count || 0, leitores: l.count || 0, pago: pg.count || 0 })
+      setStats({ unidades: u.count || 0, ativas: a.count || 0, pendentes: p.count || 0, leitores: l.count || 0, pago: pg.count || 0, totalPendente: (tp.data || []).reduce((sum: number, r: any) => sum + (Number(r.valor_total) || 0), 0) })
       setCobrancas(c.data || [])
     } catch { setErro('Erro ao carregar dados.') }
   }
@@ -78,6 +79,7 @@ export default function DashboardPage() {
     { icon: '⏳', label: 'Pendentes', value: stats.pendentes, color: '#FEF3C7' },
     { icon: '💰', label: 'Pagas', value: stats.pago, color: '#D1FAE5' },
     { icon: '👤', label: 'Leitores Ativos', value: stats.leitores, color: '#E0E7FF' },
+    { icon: '💸', label: 'Total Pendente', value: `R$ ${stats.totalPendente.toFixed(2).replace('.', ',')}`, color: '#FEE2E2' },
   ]
 
   return (
