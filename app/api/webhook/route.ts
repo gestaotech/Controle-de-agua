@@ -6,7 +6,7 @@ const supabase = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('access_token');
+    const token = req.headers.get('asaas-access-token') || req.headers.get('access_token');
     const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
 
     if (!expectedToken || token !== expectedToken) {
