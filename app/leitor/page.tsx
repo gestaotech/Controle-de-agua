@@ -62,10 +62,17 @@ export default function LeitorDashboardPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8, flexWrap: 'wrap' }}>
         {erro && <p style={{ color: '#DC2626', margin: 0 }}>{erro}</p>}
-        <div />
-        <Button size="sm" variant="secondary" onClick={load}>Recarregar</Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="sm" variant="secondary" onClick={load}>Recarregar</Button>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <a href="/leitor/relatorio" style={{ display: 'inline-block', textDecoration: 'none' }}>
+          <Button variant="primary">📑 Ver Relatório Mensal</Button>
+        </a>
       </div>
 
       {profile?.bairro_nome && (

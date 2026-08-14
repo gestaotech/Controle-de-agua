@@ -9,6 +9,7 @@ const NAV = [
   { href: '/leitor', icon: '📊', label: 'Painel' },
   { href: '/leitor/leituras', icon: '📏', label: 'Leituras' },
   { href: '/leitor/faturas', icon: '📄', label: 'Faturas' },
+  { href: '/leitor/relatorio', icon: '📑', label: 'Relatório' },
   { href: '/leitor/perfil', icon: '👤', label: 'Meu Perfil' },
 ];
 
