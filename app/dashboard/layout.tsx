@@ -13,6 +13,7 @@ const NAV = [
 const ADMIN_NAV = [
   { href: '/dashboard/bairros', icon: '📍', label: 'Bairros' },
   { href: '/dashboard/cadastrar-leitor', icon: '➕', label: 'Cadastrar Leitor' },
+  { href: '/dashboard/relatorio', icon: '📊', label: 'Relatório' },
   { href: '/dashboard/config', icon: '⚙️', label: 'Configurações' },
 ];
 
