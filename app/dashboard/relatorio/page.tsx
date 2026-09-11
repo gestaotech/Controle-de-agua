@@ -3,61 +3,49 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
-import { Card, Table, Button, Input, Select, statusBadge } from '@/components'
+import { Card, Table, Button, Input, statusBadge } from '@/components'
 import { useRouter } from 'next/navigation'
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
 
-const monthOptions = [
-  { label: 'Este Mês', value: '0' },
-  { label: 'Mês Passado', value: '-1' },
-  { label: 'Há 2 Meses', value: '-2' },
-  { label: 'Há 3 Meses', value: '-3' },
-]
+const defaultMes = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0')
 
 export default function DashboardRelatorioPage() {
   const { user, profile } = useAuth()
   const supabase = createClient()
   const router = useRouter()
-  const [periodo, setPeriodo] = useState<'0' | '-1' | '-2' | '-3' | ''>('0')
+  const [mes, setMes] = useState(defaultMes)
   const [cobrancas, setCobrancas] = useState<any[]>([])
   const [leituras, setLeituras] = useState<any[]>([])
+  const [config, setConfig] = useState({ valor_m3: 8.50, taxa_esgoto: 0 })
   const [erro, setErro] = useState('')
 
-  const calculateDateOffset = (offset: string) => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = now.getMonth() + 1 + Number(offset)
-    const calculatedMonth = ((month - 1) % 12) + 1
-    const calculatedYear = year + Math.floor((month - 1) / 12)
-    return `${calculatedYear}-${String(calculatedMonth).padStart(2, '0')}`
-  }
+  const loadConfig = useCallback(async () => {
+    const { data } = await supabase.from('config').select('valor_m3, taxa_esgoto').limit(1)
+    if (data?.[0]) setConfig({ valor_m3: Number(data[0].valor_m3), taxa_esgoto: Number(data[0].taxa_esgoto) })
+  }, [supabase])
 
   const load = useCallback(async () => {
     if (!user || !profile) return
     setErro('')
     try {
-      const mesRef = periodo ? calculateDateOffset(periodo) : null
-      // Carregar cobranças do período
+      await loadConfig()
+      // Carregar cobranças do mês
       let query = supabase
         .from('cobrancas')
         .select('*, unidades!inner(endereco, numero_hidrometro, bairros!inner(nome))')
         .eq('usuario_id', user.id)
-      if (mesRef) {
-        query = query.eq('mes', mesRef)
-      }
+        .eq('mes', mes)
       const { data: cob, error: cobErr } = await query.order('criado_em', { ascending: false })
       if (cobErr) throw cobErr
       setCobrancas(cob || [])
 
-      // Carregar leituras do período
+      // Carregar leituras do mês
       query = supabase
         .from('leituras')
         .select('*, unidades!inner(endereco, numero_hidrometro, bairros!inner(nome))')
         .eq('usuario_id', user.id)
-      if (mesRef) {
-        query = query.eq('mes', mesRef)
-      }
+        .eq('mes', mes)
       const { data: leit, error: leitErr } = await query.order('criado_em', { ascending: false })
       if (leitErr) throw leitErr
       setLeituras(leit || [])
@@ -66,7 +54,7 @@ export default function DashboardRelatorioPage() {
       setCobrancas([])
       setLeituras([])
     }
-  }, [user, profile, periodo, supabase])
+  }, [user, profile, mes, supabase, loadConfig])
 
   useEffect(() => { load() }, [load])
 
@@ -120,16 +108,15 @@ export default function DashboardRelatorioPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>Relatório Gerencial</h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <Select
-            label="Período"
-            value={periodo}
-            onChange={(e: any) => setPeriodo(e.target.value)}
-          >
-            <option value="">Selecione</option>
-            {monthOptions.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
+          <div style={{ minWidth: 180 }}>
+            <label style={{ fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' }}>Mês de Referência</label>
+            <input
+              type="month"
+              value={mes}
+              onChange={e => setMes(e.target.value)}
+              style={{ width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' }}
+            />
+          </div>
           <Button size="sm" variant="secondary" onClick={load}>Atualizar</Button>
         </div>
       </div>
@@ -173,7 +160,7 @@ export default function DashboardRelatorioPage() {
       </div>
 
       {/* Tabela de Unidades com Leitura e Fatura */}
-      <Card title={`Unidades - Período ${periodo ? monthOptions.find(m => m.value === periodo)?.label || 'Selecionado' : 'Todos'} ${periodo ? `(${new Date().getMonth() + 1}º ${new Date().getFullYear()})` : ''}`}>
+      <Card title={`Unidades - Mês ${mes}`}>
         <Table
           columns={[
             { key: 'unidade', label: 'Unidade', render: (r: any) => `${r.unidades?.endereco} - ${r.unidades?.numero_hidrometro}` },
@@ -185,12 +172,12 @@ export default function DashboardRelatorioPage() {
             { key: 'status', label: 'Status', render: (r: any) => statusBadge(r.status) },
           ]}
           data={leituras}
-          emptyMessage="Nenhuma leitura encontrada para o período selecionado."
+          emptyMessage="Nenhuma leitura encontrada para o mês selecionado."
         />
       </Card>
 
       {/* Tabela de Faturas do Período */}
-      <Card title={`Faturas - Período ${periodo ? monthOptions.find(m => m.value === periodo)?.label || 'Selecionado' : 'Todos'}`}>
+      <Card title={`Faturas - Mês ${mes}`}>
         <Table
           columns={[
             { key: 'unidade', label: 'Unidade', render: (r: any) => `${r.unidades?.endereco} - ${r.unidades?.numero_hidrometro}` },
@@ -204,13 +191,12 @@ export default function DashboardRelatorioPage() {
             { key: 'status', label: 'Status', render: (r: any) => statusBadge(r.status) },
           ]}
           data={cobrancas}
-          emptyMessage="Nenhuma fatura encontrada para o período selecionado."
+          emptyMessage="Nenhuma fatura encontrada para o mês selecionado."
         />
       </Card>
 
       <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
         <Button variant="secondary" onClick={() => router.push('/dashboard')}>Voltar ao Painel</Button>
-        <Button variant="ghost" onClick={() => setPeriodo('')}>Limpar Filtro</Button>
       </div>
     </div>
   )
