@@ -30,23 +30,21 @@ export default function DashboardRelatorioPage() {
     setErro('')
     try {
       await loadConfig()
-      // Carregar cobranças do mês
-      let query = supabase
+      // Carregar todas as cobranças do mês (admin vê tudo)
+      const { data: cob, error: cobErr } = await supabase
         .from('cobrancas')
         .select('*, unidades!inner(endereco, numero_hidrometro, bairros!inner(nome))')
-        .eq('usuario_id', user.id)
         .eq('mes', mes)
-      const { data: cob, error: cobErr } = await query.order('criado_em', { ascending: false })
+        .order('criado_em', { ascending: false })
       if (cobErr) throw cobErr
       setCobrancas(cob || [])
 
-      // Carregar leituras do mês
-      query = supabase
+      // Carregar todas as leituras do mês (admin vê tudo)
+      const { data: leit, error: leitErr } = await supabase
         .from('leituras')
         .select('*, unidades!inner(endereco, numero_hidrometro, bairros!inner(nome))')
-        .eq('usuario_id', user.id)
         .eq('mes', mes)
-      const { data: leit, error: leitErr } = await query.order('criado_em', { ascending: false })
+        .order('criado_em', { ascending: false })
       if (leitErr) throw leitErr
       setLeituras(leit || [])
     } catch (err: any) {
@@ -61,8 +59,8 @@ export default function DashboardRelatorioPage() {
   useEffect(() => {
     if (!user) return
     const ch = supabase.channel('admin-relatorio')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cobrancas', filter: `usuario_id=eq.${user.id}` }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras', filter: `usuario_id=eq.${user.id}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cobrancas' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras' }, load)
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [user, load])
@@ -79,9 +77,9 @@ export default function DashboardRelatorioPage() {
   const totalUnidadesComLeitura = new Set(leituras.map((r: any) => r.unidade_id)).size
   const avgConsumo = totalUnidadesComLeitura > 0 ? (totalConsumo / totalUnidadesComLeitura).toFixed(2) : '0,00'
 
-  // Valores calculados das leituras (usando tarifas da primeira leitura ou valores padrão)
-  const leituraAguaTotal = leituras.reduce((s, r) => s + Number(r.consumo) * Number(r.valor_m3 || 0), 0)
-  const leituraEsgotoTotal = leituras.reduce((s, r) => s + Number(r.consumo) * Number(r.taxa_esgoto || 0), 0)
+  // Valores calculados das leituras usando tarifas do config
+  const leituraAguaTotal = totalConsumo * config.valor_m3
+  const leituraEsgotoTotal = totalConsumo * config.taxa_esgoto
   const leituraValorTotal = leituraAguaTotal + leituraEsgotoTotal
 
   const cards = [
