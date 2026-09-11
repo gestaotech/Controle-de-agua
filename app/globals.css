@@ -52,4 +52,11 @@ tr:hover { background: var(--bg); }
 
 @media print {
   .no-print { display: none !important; }
+  body { background: #fff !important; }
+  main { margin-left: 0 !important; padding: 0 !important; }
+  main > div { padding: 0 !important; }
+  table { font-size: 0.8rem !important; }
+  th, td { padding: 0.4rem 0.6rem !important; }
+  .badge { border: 1px solid #ccc !important; }
+  footer { display: none !important; }
 }

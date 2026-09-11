@@ -103,7 +103,7 @@ export default function DashboardRelatorioPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>Relatório Gerencial</h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <div style={{ minWidth: 180 }}>
@@ -120,6 +120,10 @@ export default function DashboardRelatorioPage() {
       </div>
 
       {erro && <p style={{ color: '#DC2626', marginBottom: 16 }}>{erro}</p>}
+
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ fontSize: '1rem', color: '#64748B' }}>Relatório — {mes}</h3>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
         {cards.map((c, i) => (
@@ -193,8 +197,9 @@ export default function DashboardRelatorioPage() {
         />
       </Card>
 
-      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-        <Button variant="secondary" onClick={() => router.push('/dashboard')}>Voltar ao Painel</Button>
+      <div className="no-print" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        <Button variant="secondary" onClick={() => window.print()}>🖨 Imprimir / PDF</Button>
+        <Button variant="ghost" onClick={() => router.push('/dashboard')}>Voltar ao Painel</Button>
       </div>
     </div>
   )
