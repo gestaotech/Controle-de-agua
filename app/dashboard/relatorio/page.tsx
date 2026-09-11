@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
-import { Card, Table, Button, Input, statusBadge } from '@/components'
+import { Card, Table, Button, statusBadge } from '@/components'
 import { useRouter } from 'next/navigation'
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
@@ -116,6 +116,7 @@ export default function DashboardRelatorioPage() {
             />
           </div>
           <Button size="sm" variant="secondary" onClick={load}>Atualizar</Button>
+          <Button size="sm" onClick={() => window.print()}>🖨 Imprimir / PDF</Button>
         </div>
       </div>
 
@@ -198,7 +199,6 @@ export default function DashboardRelatorioPage() {
       </Card>
 
       <div className="no-print" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-        <Button variant="secondary" onClick={() => window.print()}>🖨 Imprimir / PDF</Button>
         <Button variant="ghost" onClick={() => router.push('/dashboard')}>Voltar ao Painel</Button>
       </div>
     </div>
