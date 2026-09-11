@@ -9,8 +9,8 @@ import { useRouter } from 'next/navigation'
 const fmt = (v: number) => `R$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
 
 const monthOptions = [
-  { label: 'Este Mês', value: '' },
-  { label: 'Há 1 Mês', value: '-1' },
+  { label: 'Este Mês', value: '0' },
+  { label: 'Mês Passado', value: '-1' },
   { label: 'Há 2 Meses', value: '-2' },
   { label: 'Há 3 Meses', value: '-3' },
 ]
@@ -19,8 +19,7 @@ export default function DashboardRelatorioPage() {
   const { user, profile } = useAuth()
   const supabase = createClient()
   const router = useRouter()
-  const [periodo, setPeriodo] = useState<''
-#' | '-1' | '-2' | '-3'>( '')
+  const [periodo, setPeriodo] = useState<'0' | '-1' | '-2' | '-3' | ''>('0')
   const [cobrancas, setCobrancas] = useState<any[]>([])
   const [leituras, setLeituras] = useState<any[]>([])
   const [erro, setErro] = useState('')
@@ -92,6 +91,11 @@ export default function DashboardRelatorioPage() {
   const totalUnidadesComLeitura = new Set(leituras.map((r: any) => r.unidade_id)).size
   const avgConsumo = totalUnidadesComLeitura > 0 ? (totalConsumo / totalUnidadesComLeitura).toFixed(2) : '0,00'
 
+  // Valores calculados das leituras (usando tarifas da primeira leitura ou valores padrão)
+  const leituraAguaTotal = leituras.reduce((s, r) => s + Number(r.consumo) * Number(r.valor_m3 || 0), 0)
+  const leituraEsgotoTotal = leituras.reduce((s, r) => s + Number(r.consumo) * Number(r.taxa_esgoto || 0), 0)
+  const leituraValorTotal = leituraAguaTotal + leituraEsgotoTotal
+
   const cards = [
     { icon: '💰', label: 'Total a Receber', value: fmt(totalAReceber), color: '#FEE2E2' },
     { icon: '🚿', label: 'Total de Esgoto a Receber', value: fmt(totalEsgoto), color: '#DBEAFE' },
@@ -99,10 +103,16 @@ export default function DashboardRelatorioPage() {
     { icon: '📌', label: 'Total da Taxa Mínima', value: fmt(totalTaxaFixa), color: '#FEF3C7' },
   ]
 
+  const leituraValorCards = [
+    { icon: '📊', label: 'Consumo Total (m³)', value: `${totalConsumo.toFixed(2).replace('.', ',')} m³`, color: '#E0E7FF' },
+    { icon: '💧', label: 'Valor Água (Leituras)', value: fmt(leituraAguaTotal), color: '#D1FAE5' },
+    { icon: '🚿', label: 'Valor Esgoto (Leituras)', value: fmt(leituraEsgotoTotal), color: '#DBEAFE' },
+    { icon: '💵', label: 'Total Leituras', value: fmt(leituraValorTotal), color: '#FEF3C7' },
+  ]
+
   const leitorCards = [
-    { icon: '📊', label: 'Total Consumos', value: fmt(totalConsumo), color: '#E0E7FF' },
     { icon: '👥', label: 'Unidades com Leitura', value: totalUnidadesComLeitura.toString(), color: '#CBD5E1' },
-    { icon: '📈', label: 'Média por Unidade', value: avgConsumo, color: '#98FB98' },
+    { icon: '📈', label: 'Média por Unidade', value: `${avgConsumo} m³`, color: '#98FB98' },
   ]
 
   return (
@@ -140,6 +150,17 @@ export default function DashboardRelatorioPage() {
         ))}
         {leitorCards.map((c, i) => (
           <Card key={i + 100}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 8, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{c.icon}</div>
+              <div>
+                <div style={{ color: '#64748B', fontSize: '0.8rem' }}>{c.label}</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{c.value}</div>
+              </div>
+            </div>
+          </Card>
+        ))}
+        {leituraValorCards.map((c, i) => (
+          <Card key={i + 200}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 44, height: 44, borderRadius: 8, background: c.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{c.icon}</div>
               <div>
