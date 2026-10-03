@@ -238,3 +238,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE unidades;
 ALTER PUBLICATION supabase_realtime ADD TABLE cobrancas;
 ALTER PUBLICATION supabase_realtime ADD TABLE bairros;
 ALTER PUBLICATION supabase_realtime ADD TABLE perfis;
+ALTER PUBLICATION supabase_realtime ADD TABLE config;
