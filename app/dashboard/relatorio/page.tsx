@@ -65,9 +65,10 @@ export default function DashboardRelatorioPage() {
     const ch = supabase.channel('admin-relatorio')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cobrancas' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config' }, loadConfig)
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [user, load])
+  }, [user, load, loadConfig])
 
   // Calcular totais considering only pending bills
   const pendentes = cobrancas.filter(c => c.status === 'pendente')
