@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthProvider'
 import { Card, Table, Button, Modal, statusBadge } from '@/components'
 
+const fmt = (v: number) => `R$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
+
 export default function LeitorFaturasPage() {
   const { user } = useAuth()
   const supabase = createClient()
@@ -116,10 +118,87 @@ export default function LeitorFaturasPage() {
         cnpj: c.cnpj, contato: c.contato, codigo,
         pixPayload: pixPayload || '', qrCodeBase64, temPIX: !!qrCodeBase64, pixErro,
         paymentId,
+        leituraAnterior: leitura.anterior,
+        leituraAtual: leitura.atual,
       })
     } catch (err: any) {
       alert(err.message || 'Erro ao gerar fatura.')
     } finally { setGerando(false) }
+  }
+
+  const verFatura = async (cobranca: any) => {
+    setErro('')
+    try {
+      const [{ data: leitura }, { data: unidadeCompleta }] = await Promise.all([
+        supabase
+          .from('leituras')
+          .select('anterior, atual, consumo')
+          .eq('unidade_id', cobranca.unidade_id)
+          .eq('mes', cobranca.mes)
+          .maybeSingle(),
+        supabase
+          .from('unidades')
+          .select('*, bairros(nome)')
+          .eq('id', cobranca.unidade_id)
+          .maybeSingle(),
+      ])
+
+      const { data: cfg } = await supabase.from('config').select('empresa, cnpj, contato').limit(1)
+      const empresa = cfg?.[0]?.empresa || 'Saneamento Basico'
+      const cnpj = cfg?.[0]?.cnpj || ''
+      const contato = cfg?.[0]?.contato || ''
+
+      const paymentId = cobranca.asaas_payment_id
+      const pixPayload = cobranca.pix_payload
+
+      let qrCodeBase64 = ''
+      let pixErro = ''
+      let temPIX = false
+
+      if (paymentId) {
+        const res = await fetch('/api/pix', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cobrancaId: cobranca.id, existingPaymentId: paymentId }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          qrCodeBase64 = `data:image/png;base64,${data.qrCodeBase64}`
+          temPIX = true
+        } else {
+          pixErro = data.error || 'Erro ao carregar PIX'
+        }
+      }
+
+      const envRes = await fetch('/api/asaas-env')
+      if (envRes.ok) { const e = await envRes.json(); setAmbiente(e.environment || '') }
+
+      setFatura({
+        unidade: unidadeCompleta,
+        mes: cobranca.mes,
+        consumo: cobranca.consumo,
+        valorM3: Number(cobranca.valor_m3),
+        taxaEsgoto: Number(cobranca.taxa_esgoto),
+        valorEsgoto: Number(cobranca.consumo) * Number(cobranca.taxa_esgoto),
+        taxaFixa: Number(cobranca.taxa_fixa),
+        valorTotal: Number(cobranca.valor_total),
+        vencimento: cobranca.vencimento,
+        status: cobranca.status,
+        empresa,
+        cnpj,
+        contato,
+        codigo: cobranca.id?.slice(-8).toUpperCase() || '',
+        pixPayload: pixPayload || '',
+        qrCodeBase64,
+        temPIX,
+        pixErro,
+        paymentId,
+        leituraAnterior: leitura?.anterior,
+        leituraAtual: leitura?.atual,
+        isHistorical: true,
+      })
+    } catch (err: any) {
+      alert(err.message || 'Erro ao carregar fatura.')
+    }
   }
 
   const simularPagamento = async () => {
@@ -145,6 +224,16 @@ export default function LeitorFaturasPage() {
     catch { alert('Erro ao copiar. Selecione e copie manualmente.') }
   }
 
+  const enderecoCompleto = (u: any) => {
+    if (!u) return ''
+    const partes = [u.endereco]
+    if (u.numero) partes.push(u.numero)
+    if (u.complemento) partes.push(u.complemento)
+    if (u.bloco) partes.push(`Bloco ${u.bloco}`)
+    if (u.unidade_numero) partes.push(`Apto/Unidade ${u.unidade_numero}`)
+    return partes.join(', ')
+  }
+
   return (
     <div>
       <Card title="Faturas Geradas" style={{ marginBottom: 24 }}>
@@ -154,14 +243,11 @@ export default function LeitorFaturasPage() {
             { key: 'unidade', label: 'Unidade', render: (r: any) => `${r.unidades?.endereco} - ${r.unidades?.numero_hidrometro}` },
             { key: 'mes', label: 'Mês' },
             { key: 'consumo', label: 'Consumo', render: (r: any) => `${r.consumo} m³` },
-            { key: 'valor_total', label: 'Valor', render: (r: any) => `R$ ${Number(r.valor_total).toFixed(2).replace('.', ',')}` },
+            { key: 'valor_total', label: 'Valor', render: (r: any) => fmt(r.valor_total) },
             { key: 'vencimento', label: 'Vencimento', render: (r: any) => new Date(r.vencimento + 'T00:00:00').toLocaleDateString('pt-BR') },
             { key: 'status', label: 'Status', render: (r: any) => statusBadge(r.status) },
             { key: 'acoes', label: 'Ações', render: (r: any) => (
-              <Button size="sm" variant="secondary" onClick={() => gerarFatura({
-                unidade_id: r.unidade_id, mes: r.mes, consumo: r.consumo,
-                unidades: r.unidades,
-              })}>Ver Fatura</Button>
+              <Button size="sm" variant="secondary" onClick={() => verFatura(r)}>Ver Fatura</Button>
             )},
           ]}
           data={cobrancas}
@@ -194,13 +280,59 @@ export default function LeitorFaturasPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Endereço</label><div>{fatura.unidade?.endereco}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Hidrômetro</label><div>{fatura.unidade?.numero_hidrometro}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Bairro</label><div>{fatura.unidade?.bairros?.nome}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Referência</label><div>{fatura.mes}</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Consumo</label><div>{fatura.consumo} m³</div></div>
-              <div><label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Vencimento</label><div>{new Date(fatura.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</div></div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Código da Unidade</label>
+                <div>{fatura.unidade?.codigo || '-'}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Hidrômetro</label>
+                <div>{fatura.unidade?.numero_hidrometro}</div>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Endereço</label>
+                <div>{enderecoCompleto(fatura.unidade)}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Bairro</label>
+                <div>{fatura.unidade?.bairros?.nome || '-'}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Referência</label>
+                <div>{fatura.mes}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Responsável</label>
+                <div>{fatura.unidade?.responsavel_nome || '-'}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Telefone</label>
+                <div>{fatura.unidade?.responsavel_telefone || '-'}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>E-mail</label>
+                <div>{fatura.unidade?.responsavel_email || '-'}</div>
+              </div>
             </div>
+
+            {fatura.leituraAnterior !== undefined && fatura.leituraAtual !== undefined && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                <div style={{ fontWeight: 600, color: '#166534', marginBottom: 8 }}>Leituras do Período</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Anterior</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{fatura.leituraAnterior} m³</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Atual</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{fatura.leituraAtual} m³</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Consumo</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#16A34A' }}>{fatura.consumo} m³</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div style={{ background: '#F8FAFC', padding: 20, borderRadius: 8, marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '4px 0', color: '#475569' }}>
@@ -217,13 +349,23 @@ export default function LeitorFaturasPage() {
               </div>
               <div style={{ borderTop: '1px solid #E2E8F0', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#64748B', fontSize: '0.85rem' }}>VALOR TOTAL</span>
-                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3B82F6' }}>R$ {fatura.valorTotal.toFixed(2).replace('.', ',')}</span>
+                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3B82F6' }}>{fmt(fatura.valorTotal)}</span>
               </div>
             </div>
 
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: 4 }}>Código da Fatura</div>
-              <div style={{ fontFamily: 'monospace', background: '#F8FAFC', padding: '8px 16px', borderRadius: 4, display: 'inline-block' }}>{fatura.codigo}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Vencimento</label>
+                <div>{new Date(fatura.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Status</label>
+                <div>{statusBadge(fatura.status)}</div>
+              </div>
+              <div style={{ gridColumn: 'span 2', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: 4 }}>Código da Fatura</div>
+                <div style={{ fontFamily: 'monospace', background: '#F8FAFC', padding: '8px 16px', borderRadius: 4, display: 'inline-block' }}>{fatura.codigo}</div>
+              </div>
             </div>
 
             {fatura.pixErro && (

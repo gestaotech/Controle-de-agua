@@ -6,15 +6,18 @@ import { Card, Input, Select, Button, Table, statusBadge } from '@/components'
 
 interface Bairro { id: string; nome: string }
 interface Unidade {
-  id: string; endereco: string; numero_hidrometro: string
+  id: string; codigo: string; endereco: string; numero: string; complemento: string
+  bloco: string; unidade_numero: string; numero_hidrometro: string
   bairro_id: string; leitura_inicial: number; data_leitura_inicial: string
-  status: string; bairros: { nome: string } | null
+  status: string; responsavel_nome: string; responsavel_telefone: string
+  responsavel_email: string; data_instalacao: string; observacao: string
+  bairros: { nome: string } | null
 }
 
 export default function UnidadesPage() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [bairros, setBairros] = useState<Bairro[]>([])
-  const [form, setForm] = useState({ endereco: '', numero_hidrometro: '', bairro_id: '', leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo' })
+  const [form, setForm] = useState({ codigo: '', endereco: '', numero: '', complemento: '', bloco: '', unidade_numero: '', numero_hidrometro: '', bairro_id: '', leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo', responsavel_nome: '', responsavel_telefone: '', responsavel_email: '', data_instalacao: '', observacao: '' })
   const [editId, setEditId] = useState('')
   const [busca, setBusca] = useState('')
   const [erro, setErro] = useState('')
@@ -24,7 +27,8 @@ export default function UnidadesPage() {
     setErro('')
     try {
       let q = supabase.from('unidades').select('*, bairros(nome)')
-      if (busca) q = q.or(`endereco.ilike.%${busca}%,numero_hidrometro.ilike.%${busca}%`)
+       if (busca) q = q.or(`endereco.ilike.%${busca}%,numero_hidrometro.ilike.%${busca}%,codigo.ilike.%${busca}%,responsavel_nome.ilike.%${busca}%,bloco.ilike.%${busca}%,unidade_numero.ilike.%${busca}%`)
+
       const [u, b] = await Promise.all([q.order('endereco'), supabase.from('bairros').select('id, nome').eq('ativo', true).order('nome')])
       setUnidades(u.data || [])
       setBairros(b.data || [])
@@ -44,7 +48,23 @@ export default function UnidadesPage() {
     if (!form.endereco || !form.numero_hidrometro || !form.bairro_id) return alert('Preencha endereço, hidrômetro e bairro')
     try {
       if (editId) {
-        await supabase.from('unidades').update({ endereco: form.endereco, numero_hidrometro: form.numero_hidrometro, bairro_id: form.bairro_id, status: form.status }).eq('id', editId)
+        const { error } = await supabase.from('unidades').update({
+          codigo: form.codigo || null,
+          endereco: form.endereco,
+          numero: form.numero || null,
+          complemento: form.complemento || null,
+          bloco: form.bloco || null,
+          unidade_numero: form.unidade_numero || null,
+          numero_hidrometro: form.numero_hidrometro,
+          bairro_id: form.bairro_id,
+          status: form.status,
+          responsavel_nome: form.responsavel_nome || null,
+          responsavel_telefone: form.responsavel_telefone || null,
+          responsavel_email: form.responsavel_email || null,
+          data_instalacao: form.data_instalacao || null,
+          observacao: form.observacao || null,
+        }).eq('id', editId)
+        if (error) throw error
       } else {
         const { count } = await supabase
           .from('unidades').select('*', { count: 'exact', head: true }).eq('bairro_id', form.bairro_id)
@@ -52,25 +72,69 @@ export default function UnidadesPage() {
           alert('Limite de memoria atingido, contate o suporte.')
           return
         }
-        await supabase.from('unidades').insert({ endereco: form.endereco, numero_hidrometro: form.numero_hidrometro, bairro_id: form.bairro_id, leitura_inicial: form.leitura_inicial, data_leitura_inicial: form.data_leitura_inicial, status: form.status })
+        const { error } = await supabase.from('unidades').insert({
+          codigo: form.codigo || null,
+          endereco: form.endereco,
+          numero: form.numero || null,
+          complemento: form.complemento || null,
+          bloco: form.bloco || null,
+          unidade_numero: form.unidade_numero || null,
+          numero_hidrometro: form.numero_hidrometro,
+          bairro_id: form.bairro_id,
+          leitura_inicial: form.leitura_inicial,
+          data_leitura_inicial: form.data_leitura_inicial,
+          status: form.status,
+          responsavel_nome: form.responsavel_nome || null,
+          responsavel_telefone: form.responsavel_telefone || null,
+          responsavel_email: form.responsavel_email || null,
+          data_instalacao: form.data_instalacao || null,
+          observacao: form.observacao || null,
+        })
+        if (error) throw error
       }
       resetForm(); load()
-    } catch { alert('Erro ao salvar unidade.') }
+      alert(editId ? 'Unidade atualizada com sucesso.' : 'Unidade cadastrada com sucesso.')
+    } catch (err: any) {
+      alert(err.message || 'Erro ao salvar unidade.')
+    }
   }
 
   const resetForm = () => {
-    setForm({ endereco: '', numero_hidrometro: '', bairro_id: '', leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo' })
+    setForm({ codigo: '', endereco: '', numero: '', complemento: '', bloco: '', unidade_numero: '', numero_hidrometro: '', bairro_id: '', leitura_inicial: 0, data_leitura_inicial: new Date().toISOString().split('T')[0], status: 'ativo', responsavel_nome: '', responsavel_telefone: '', responsavel_email: '', data_instalacao: '', observacao: '' })
     setEditId('')
   }
 
   const edit = (u: Unidade) => {
-    setForm({ endereco: u.endereco, numero_hidrometro: u.numero_hidrometro, bairro_id: u.bairro_id, leitura_inicial: Number(u.leitura_inicial), data_leitura_inicial: u.data_leitura_inicial, status: u.status })
+    setForm({
+      codigo: u.codigo || '',
+      endereco: u.endereco,
+      numero: u.numero || '',
+      complemento: u.complemento || '',
+      bloco: u.bloco || '',
+      unidade_numero: u.unidade_numero || '',
+      numero_hidrometro: u.numero_hidrometro,
+      bairro_id: u.bairro_id,
+      leitura_inicial: Number(u.leitura_inicial),
+      data_leitura_inicial: u.data_leitura_inicial,
+      status: u.status,
+      responsavel_nome: u.responsavel_nome || '',
+      responsavel_telefone: u.responsavel_telefone || '',
+      responsavel_email: u.responsavel_email || '',
+      data_instalacao: u.data_instalacao || '',
+      observacao: u.observacao || '',
+    })
     setEditId(u.id)
   }
 
   const del = async (id: string) => {
     if (!confirm('Excluir esta unidade?')) return
-    try { await supabase.from('unidades').delete().eq('id', id); load() } catch { alert('Erro ao excluir unidade.') }
+    try {
+      const { error } = await supabase.from('unidades').delete().eq('id', id)
+      if (error) throw error
+      load()
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir unidade.')
+    }
   }
 
   return (
@@ -80,6 +144,11 @@ export default function UnidadesPage() {
         <form onSubmit={save} style={{ display: 'grid', gap: 12 }}>
           <Input label="Endereço *" value={form.endereco} onChange={(e: any) => setForm({ ...form, endereco: e.target.value })} required placeholder="Rua, avenida..." />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <Input label="Número" value={form.numero} onChange={(e: any) => setForm({ ...form, numero: e.target.value })} />
+            <Input label="Complemento" value={form.complemento} onChange={(e: any) => setForm({ ...form, complemento: e.target.value })} />
+            <Input label="Bloco" value={form.bloco} onChange={(e: any) => setForm({ ...form, bloco: e.target.value })} />
+            <Input label="Apartamento/Unidade" value={form.unidade_numero} onChange={(e: any) => setForm({ ...form, unidade_numero: e.target.value })} />
+            <Input label="Código/Identificação" value={form.codigo} onChange={(e: any) => setForm({ ...form, codigo: e.target.value })} />
             <Input label="Nº Hidrômetro *" value={form.numero_hidrometro} onChange={(e: any) => setForm({ ...form, numero_hidrometro: e.target.value })} required />
             <Select label="Bairro/Condomínio *" value={form.bairro_id} onChange={(e: any) => setForm({ ...form, bairro_id: e.target.value })} required>
               <option value="">Selecione</option>
@@ -89,7 +158,14 @@ export default function UnidadesPage() {
               <option value="ativo">Ativo</option>
               <option value="inativo">Inativo</option>
             </Select>
+            <Input label="Data Instalação" type="date" value={form.data_instalacao} onChange={(e: any) => setForm({ ...form, data_instalacao: e.target.value })} />
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <Input label="Responsável" value={form.responsavel_nome} onChange={(e: any) => setForm({ ...form, responsavel_nome: e.target.value })} />
+            <Input label="Telefone Responsável" value={form.responsavel_telefone} onChange={(e: any) => setForm({ ...form, responsavel_telefone: e.target.value })} />
+            <Input label="E-mail Responsável" type="email" value={form.responsavel_email} onChange={(e: any) => setForm({ ...form, responsavel_email: e.target.value })} />
+          </div>
+          <Input label="Observação" value={form.observacao} onChange={(e: any) => setForm({ ...form, observacao: e.target.value })} placeholder="Observações sobre a unidade" />
           {!editId && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label="Leitura Inicial (m³)" type="number" step="0.01" value={form.leitura_inicial} onChange={(e: any) => setForm({ ...form, leitura_inicial: parseFloat(e.target.value) || 0 })} />
@@ -105,14 +181,12 @@ export default function UnidadesPage() {
 
       <Card title={`Unidades (${unidades.length})`}>
         <div style={{ marginBottom: 16 }}>
-          <Input placeholder="Buscar endereço ou hidrômetro..." value={busca} onChange={(e: any) => setBusca(e.target.value)} style={{ maxWidth: 400 }} />
+          <Input placeholder="Buscar endereço, hidrômetro, código, responsável..." value={busca} onChange={(e: any) => setBusca(e.target.value)} style={{ maxWidth: 400 }} />
         </div>
         <Table
           columns={[
-            { key: 'endereco', label: 'Endereço' },
-            { key: 'numero_hidrometro', label: 'Hidrômetro' },
-            { key: 'bairro', label: 'Bairro', render: (r: Unidade) => r.bairros?.nome || '-' },
-            { key: 'leitura_inicial', label: 'Leitura Inicial', render: (r: Unidade) => `${Number(r.leitura_inicial).toFixed(2)} m³` },
+            { key: 'endereco', label: 'Endereço', render: (r: Unidade) => `${r.endereco}${r.numero ? ', ' + r.numero : ''}${r.bloco ? ' Bl.' + r.bloco : ''}${r.unidade_numero ? ' Ap.' + r.unidade_numero : ''}` },
+            { key: 'responsavel', label: 'Responsável', render: (r: Unidade) => r.responsavel_nome || '-' },
             { key: 'status', label: 'Status', render: (r: Unidade) => statusBadge(r.status) },
             { key: 'acoes', label: 'Ações', render: (r: Unidade) => (
               <div style={{ display: 'flex', gap: 4 }}>

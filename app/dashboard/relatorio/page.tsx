@@ -17,12 +17,16 @@ export default function DashboardRelatorioPage() {
   const [mes, setMes] = useState(defaultMes)
   const [cobrancas, setCobrancas] = useState<any[]>([])
   const [leituras, setLeituras] = useState<any[]>([])
-  const [config, setConfig] = useState({ valor_m3: 8.50, taxa_esgoto: 0 })
+  const [config, setConfig] = useState({ valor_m3: 8.50, taxa_esgoto: 0, taxa_fixa: 15.00 })
   const [erro, setErro] = useState('')
 
   const loadConfig = useCallback(async () => {
-    const { data } = await supabase.from('config').select('valor_m3, taxa_esgoto').limit(1)
-    if (data?.[0]) setConfig({ valor_m3: Number(data[0].valor_m3), taxa_esgoto: Number(data[0].taxa_esgoto) })
+    const { data } = await supabase.from('config').select('valor_m3, taxa_esgoto, taxa_fixa').limit(1)
+    if (data?.[0]) setConfig({
+      valor_m3: Number(data[0].valor_m3),
+      taxa_esgoto: Number(data[0].taxa_esgoto),
+      taxa_fixa: Number(data[0].taxa_fixa)
+    })
   }, [supabase])
 
   const load = useCallback(async () => {
@@ -80,7 +84,8 @@ export default function DashboardRelatorioPage() {
   // Valores calculados das leituras usando tarifas do config
   const leituraAguaTotal = totalConsumo * config.valor_m3
   const leituraEsgotoTotal = totalConsumo * config.taxa_esgoto
-  const leituraValorTotal = leituraAguaTotal + leituraEsgotoTotal
+  const leituraTaxaFixaTotal = totalUnidadesComLeitura * config.taxa_fixa
+  const leituraValorTotal = leituraAguaTotal + leituraEsgotoTotal + leituraTaxaFixaTotal
 
   const cards = [
     { icon: '💰', label: 'Total a Receber', value: fmt(totalAReceber), color: '#FEE2E2' },
@@ -93,6 +98,7 @@ export default function DashboardRelatorioPage() {
     { icon: '📊', label: 'Consumo Total (m³)', value: `${totalConsumo.toFixed(2).replace('.', ',')} m³`, color: '#E0E7FF' },
     { icon: '💧', label: 'Valor Água (Leituras)', value: fmt(leituraAguaTotal), color: '#D1FAE5' },
     { icon: '🚿', label: 'Valor Esgoto (Leituras)', value: fmt(leituraEsgotoTotal), color: '#DBEAFE' },
+    { icon: '📌', label: 'Taxa Fixa (Leituras)', value: fmt(leituraTaxaFixaTotal), color: '#FEF3C7' },
     { icon: '💵', label: 'Total Leituras', value: fmt(leituraValorTotal), color: '#FEF3C7' },
   ]
 
