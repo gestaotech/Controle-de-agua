@@ -20,13 +20,24 @@ export default function DashboardRelatorioPage() {
   const [config, setConfig] = useState({ valor_m3: 8.50, taxa_esgoto: 0, taxa_fixa: 15.00 })
   const [erro, setErro] = useState('')
 
+  console.log('DashboardRelatorioPage render, user:', user?.id, 'profile:', profile?.perfil)
+
   const loadConfig = useCallback(async () => {
-    const { data } = await supabase.from('config').select('valor_m3, taxa_esgoto, taxa_fixa').limit(1)
-    if (data?.[0]) setConfig({
-      valor_m3: Number(data[0].valor_m3),
-      taxa_esgoto: Number(data[0].taxa_esgoto),
-      taxa_fixa: Number(data[0].taxa_fixa)
-    })
+    try {
+      const { data, error } = await supabase.from('config').select('valor_m3, taxa_esgoto, taxa_fixa').limit(1)
+      if (error) {
+        console.error('Erro ao carregar config:', error)
+        return
+      }
+      if (data?.[0]) setConfig({
+        valor_m3: Number(data[0].valor_m3),
+        taxa_esgoto: Number(data[0].taxa_esgoto),
+        taxa_fixa: Number(data[0].taxa_fixa)
+      })
+      console.log('Config carregada:', data?.[0])
+    } catch (err) {
+      console.error('Erro loadConfig:', err)
+    }
   }, [supabase])
 
   const load = useCallback(async () => {
@@ -61,12 +72,18 @@ export default function DashboardRelatorioPage() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
+    console.log('Realtime useEffect running, user:', user?.id)
     if (!user) return
     const ch = supabase.channel('admin-relatorio')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cobrancas' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leituras' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'config' }, loadConfig)
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config' }, (payload) => {
+        console.log('Realtime config event:', payload)
+        loadConfig()
+      })
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status)
+      })
     return () => { supabase.removeChannel(ch) }
   }, [user, load, loadConfig])
 
