@@ -15,6 +15,7 @@ export default function DashboardRelatorioPage() {
   const supabase = createClient()
   const router = useRouter()
   const [mes, setMes] = useState(defaultMes)
+  const [ordem, setOrdem] = useState<'nome' | 'consumo' | 'valor'>('nome')
   const [cobrancas, setCobrancas] = useState<any[]>([])
   const [leituras, setLeituras] = useState<any[]>([])
   const [config, setConfig] = useState({ valor_m3: 8.50, taxa_esgoto: 0, taxa_fixa: 15.00 })
@@ -125,6 +126,22 @@ export default function DashboardRelatorioPage() {
     { icon: '📈', label: 'Média por Unidade', value: `${avgConsumo} m³`, color: '#98FB98' },
   ]
 
+  // Ordenação
+  const ordenar = (arr: any[]) => {
+    const copia = [...arr]
+    if (ordem === 'nome') {
+      copia.sort((a, b) => (a.unidades?.endereco || '').localeCompare(b.unidades?.endereco || ''))
+    } else if (ordem === 'consumo') {
+      copia.sort((a, b) => Number(b.consumo) - Number(a.consumo))
+    } else if (ordem === 'valor') {
+      copia.sort((a, b) => Number(b.valor_total) - Number(a.valor_total))
+    }
+    return copia
+  }
+
+  const leiturasOrdenadas = ordenar(leituras)
+  const cobrancasOrdenadas = ordenar(cobrancas)
+
   return (
     <div>
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
@@ -145,6 +162,21 @@ export default function DashboardRelatorioPage() {
       </div>
 
       {erro && <p style={{ color: '#DC2626', marginBottom: 16 }}>{erro}</p>}
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 160 }}>
+          <label style={{ fontWeight: 500, color: '#64748B', fontSize: '0.85rem', marginBottom: 4, display: 'block' }}>Ordenar por</label>
+          <select
+            value={ordem}
+            onChange={e => setOrdem(e.target.value as 'nome' | 'consumo' | 'valor')}
+            style={{ width: '100%', padding: '0.625rem 0.75rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.95rem' }}
+          >
+            <option value="nome">Nome (A-Z)</option>
+            <option value="consumo">Consumo (maior)</option>
+            <option value="valor">Valor (maior)</option>
+          </select>
+        </div>
+      </div>
 
       <div style={{ marginBottom: 8 }}>
         <h3 style={{ fontSize: '1rem', color: '#64748B' }}>Relatório — {mes}</h3>
@@ -198,7 +230,7 @@ export default function DashboardRelatorioPage() {
             { key: 'consumo', label: 'Consumo (m³)', render: (r: any) => <strong>{r.consumo} m³</strong> },
             { key: 'status', label: 'Status', render: (r: any) => statusBadge(r.status) },
           ]}
-          data={leituras}
+          data={leiturasOrdenadas}
           emptyMessage="Nenhuma leitura encontrada para o mês selecionado."
         />
       </Card>
@@ -217,7 +249,7 @@ export default function DashboardRelatorioPage() {
             { key: 'valor_total', label: 'Valor Total', render: (r: any) => <strong>{fmt(r.valor_total)}</strong> },
             { key: 'status', label: 'Status', render: (r: any) => statusBadge(r.status) },
           ]}
-          data={cobrancas}
+          data={cobrancasOrdenadas}
           emptyMessage="Nenhuma fatura encontrada para o mês selecionado."
         />
       </Card>
